@@ -115,5 +115,12 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
   .menu { display: block; }
   .thread { position: fixed; inset: 0; width: auto; z-index: 5; background: var(--bg); border: 0; }
   .head, .msg, .divider, .working { padding-left: 16px; padding-right: 16px; }
-  .composer { margin: 0 16px 16px; }
+  .composer { margin: 0 16px calc(12px + env(safe-area-inset-bottom)); }
+  .head { padding-top: calc(10px + env(safe-area-inset-top)); justify-content: flex-start; }
+  .head > div { min-width: 0; flex: 1; }
+  .head .topic { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sidebar .ws { padding-top: calc(18px + env(safe-area-inset-top)); }
+  .composer textarea { font-size: 16px; }   /* stops iOS zooming in on focus */
+  .composer button { width: 40px; height: 34px; }
+  .nav li { padding: 8px 10px; }
 }
