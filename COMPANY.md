@@ -105,6 +105,7 @@ Append-only. Date, decision, why.
 - 2026-11-13: Company founded as TuriChips. Eight roles defined.
 - 2026-11-13: Finish lines set: main goal is a RISC-V CPU, bigger vision is an ML accelerator. Verilator for simulation, no FPGA.
 - 2026-11-13: Agents named, each with a personality: Vera, Theo, Mira, Quinn, Rook, Otto, Petra, Juno.
+- 2026-11-13: Each pair of agents runs on its own Claude Team seat: seat1 Vera+Otto, seat2 Rook+Juno, seat3 Theo+Petra, seat4 Mira+Quinn (the Opus agents and the heavy builders are spread out). Confirmed with Anthropic that this is fine.
 - 2026-11-13: Models pinned per agent: Opus 5.5 for Vera (spec errors spread to everyone) and Rook (subtle bugs), Sonnet 5.5 for the rest.
 - 2026-11-13: Two phases: historic rebuilds first, then our own designs in families (R family = RISC-V, M family = ML) built from a shared block library.
 - 2026-11-13: Simulation only, no manufacturing. Chips are rebuilt in historical order across four tracks: CPUs → retro machines → graphics → ML.

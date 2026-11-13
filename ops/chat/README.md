@@ -8,12 +8,13 @@ A minimal Slack-style app for talking to the agents. The UI is for reading and c
 - **Sessions:** each agent has one Claude session per DM, per channel and per thread. DM and channel sessions restart after 4 hours of silence.
 - **Workspaces:** each agent works in its own git worktree at `~/work/<agent>` on branch `agent/<agent>`. Company docs are always read fresh from `origin/main`.
 - **Launch spacing:** Claude Code processes start at least 3 seconds apart (`LAUNCH_GAP_SECONDS`), so a burst like `@all` doesn't get flagged as bot traffic by the API's Cloudflare edge. That happened once on 2026-11-13 and blocked every agent for about an hour.
+- **Accounts:** each agent runs on a Claude Team seat (`account` in `config.py`): seat1 Vera+Otto, seat2 Rook+Juno, seat3 Theo+Petra, seat4 Mira+Quinn. Tokens are `CLAUDE_TOKEN_SEAT1..4` in the env file. A seat without a token falls back to `CLAUDE_CODE_OAUTH_TOKEN`, which the router also uses. Each agent only ever sees its own seat's token.
 - **Models:** pinned per agent in `config.py`: Opus 5.5 for Vera and Rook, Sonnet 5.5 for the rest. The router uses Haiku.
 - **Office:** the 🏢 Office button shows the team as pixel-art characters in an office (`static/office.js`, original art drawn in code). Working agents sit at their desks and type; idle ones wander to the lounge. New messages pop up as speech bubbles, and clicking someone opens their DM.
 - **Scripts:** `python post.py <channel> <author> "text"` posts a message, for example from scheduled standups.
 
 ## Run on the VM
-- Config in `/home/turichips/.turichips.env` (never committed): `CLAUDE_CODE_OAUTH_TOKEN=…`, `MAX_PARALLEL_AGENTS=4`
+- Config in `/home/turichips/.turichips.env` (never committed): `CLAUDE_CODE_OAUTH_TOKEN=…` (manager seat, router), `CLAUDE_TOKEN_SEAT1=…` to `CLAUDE_TOKEN_SEAT4=…`, `MAX_PARALLEL_AGENTS=4`
 - `sudo systemctl enable --now turichips-chat`, logs with `journalctl -u turichips-chat -f`
 - The app listens on `127.0.0.1:8600` only. Open it through an SSH tunnel:
   `ssh -N -L 8600:localhost:8600 <vm>`, then go to http://localhost:8600

@@ -58,6 +58,18 @@ async def prepare(agent: str) -> tuple[Path, str]:
         return await asyncio.to_thread(_prepare_sync, agent)
 
 
+def account_env(agent: str) -> dict:
+    """Environment for one agent's Claude run, logged in as that agent's Team seat."""
+    env = os.environ.copy()
+    seat = AGENTS[agent].get("account", "")
+    token = os.environ.get(f"CLAUDE_TOKEN_{seat.upper()}") if seat else None
+    if token:
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = token
+    for k in [k for k in env if k.startswith("CLAUDE_TOKEN_")]:
+        del env[k]                       # an agent never sees other seats' tokens
+    return env
+
+
 async def run_turn(agent: str, message: str, session_id: str, resume: bool) -> tuple[str, bool]:
     """Returns (reply text, ok). The session only counts as started when ok is True."""
     wt, system_prompt = await prepare(agent)
@@ -67,7 +79,7 @@ async def run_turn(agent: str, message: str, session_id: str, resume: bool) -> t
     cmd += ["--resume", session_id] if resume else ["--session-id", session_id]
     await wait_turn()
     proc = await asyncio.create_subprocess_exec(
-        *cmd, cwd=wt, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        *cmd, cwd=wt, env=account_env(agent), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     try:
         out, err = await asyncio.wait_for(proc.communicate(), timeout=TIMEOUT)
     except asyncio.TimeoutError:
