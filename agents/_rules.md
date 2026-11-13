@@ -27,6 +27,7 @@ This layout is a starting suggestion. Rename folders to suit the repo.
 | scripts/, Makefile, .github/ | Build and test automation | Infrastructure Engineer |
 | synth/ | Synthesis scripts and reports | Physical Design Engineer |
 | sw/, README.md, docs/release.md | Demo programs and public write-up | Software and Docs Engineer |
+| ops/ | Discord bot and server setup | Manager |
 | logs/standup.md | Daily reports | Everyone appends |
 
 ## Standup format
