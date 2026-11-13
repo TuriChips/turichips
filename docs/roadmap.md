@@ -6,7 +6,7 @@ The lab runs in two phases:
 1. **Phase 1: Historic rebuilds.** Rebuild real chips in the order history made them, to learn what each generation learned.
 2. **Phase 2: Our own designs, in families.** A block library, plus families of chips built from it, each with its own targets.
 
-Rule: a chip starts only when the one before it in its stage is released, or the manager says otherwise.
+Rule: a chip starts only when the one before it in the list is released, or the manager says otherwise.
 
 ---
 
@@ -18,42 +18,29 @@ Rule: a chip starts only when the one before it in its stage is released, or the
 
 ## Phase 1: Historic rebuilds (Dec 2026 → ~mid 2027)
 
-### Stage 1.1: First CPUs
-| # | Chip | Year | Notes |
-|---|------|------|-------|
-| 1 | Intel 4004 | 1971 | **First card on the website.** |
-| 2 | Intel 8080 | 1974 | |
-| 3 | MOS 6502 | 1975 | Reused by the Atari 2600, NES and C64. |
-| 4 | Zilog Z80 | 1976 | Leads into the Game Boy and Master System. |
+Chips are built **in order of year**, across all four tracks (decided by the manager, 2026-11-13). When two chips share a year, the one a later chip depends on goes first. Years are to be checked against datasheets before each spec is written.
 
-### Stage 1.2: First machines (reuse the cores from 1.1)
-| # | Machine | Year | Notes |
-|---|---------|------|-------|
-| 5 | Atari 2600 (TIA + RIOT) | 1977 | First video output. |
-| 6 | NES (2A03 + PPU) | 1983 | Homebrew demos. |
-| 7 | Game Boy (SM83 + PPU + APU) | 1989 | First full system-on-chip. |
+No dates or deadlines for chips 1–4 (manager, 2026-11-13).
 
-### Stage 1.3: 16/32-bit and RISC
-| # | Chip | Year | Notes |
-|---|------|------|-------|
-| 8 | Motorola 68000 | 1979 | |
-| 9 | Berkeley RISC-I | 1982 | Ancestor of RISC-V. |
-| 10 | ARM2 | 1986 | |
-| 11 | MIPS R2000 | 1986 | 5-stage pipeline. **Direct prep for R3.** |
-
-### Stage 1.4: Graphics
-| # | Chip | Year | Notes |
-|---|------|------|-------|
-| 12 | NEC µPD7220 | 1982 | 2D drawing in hardware. |
-| 13 | PlayStation GTE + GPU | 1994 | First 3D. |
-| 14 | 3dfx Voodoo Graphics | 1996 | Texture-mapped 3D. |
-
-### Stage 1.5: Bridges to Phase 2
-| # | Chip | Year | Notes |
-|---|------|------|-------|
-| 15 | TI TMS32010 DSP | 1983 | Multiply-accumulate: the bridge to ML. |
-| 16 | Systolic array (H.T. Kung) | 1978–82 | Core of the M family. |
-| 17 | MIPS R10000 (simplified) | 1996 | Out-of-order. **Direct prep for R5.** |
+| # | Chip | Year | Track | Notes |
+|---|------|------|-------|-------|
+| 1 | Intel 4004 | 1971 | CPU | **First card on the website.** |
+| 2 | Intel 8080 | 1974 | CPU | |
+| 3 | MOS 6502 | 1975 | CPU | Reused by the Atari 2600 and NES. |
+| 4 | Zilog Z80 | 1976 | CPU | Z80-like ancestry for the Game Boy's SM83 (not the same core). |
+| 5 | Atari 2600 (TIA + RIOT) | 1977 | Retro | First video output. Reuses the 6502. |
+| 6 | Systolic array (H.T. Kung) | 1978 | ML | Core idea of the M family. |
+| 7 | Motorola 68000 | 1979 | CPU | |
+| 8 | Berkeley RISC-I | 1982 | CPU | Ancestor of RISC-V. |
+| 9 | NEC µPD7220 | 1982 | Graphics | 2D drawing in hardware. |
+| 10 | TI TMS32010 DSP | 1983 | ML bridge | Multiply-accumulate. |
+| 11 | NES (2A03 + PPU) | 1983 | Retro | Reuses the 6502. Homebrew demos. |
+| 12 | MIPS R2000 | 1986 | CPU | 5-stage pipeline. **Direct prep for R3.** |
+| 13 | ARM2 | 1986 | CPU | |
+| 14 | Game Boy (SM83 + PPU + APU) | 1989 | Retro | First full system-on-chip. |
+| 15 | PlayStation GTE + GPU | 1994 | Graphics | First 3D. |
+| 16 | MIPS R10000 (simplified) | 1996 | CPU | Out-of-order. **Direct prep for R5.** |
+| 17 | 3dfx Voodoo Graphics | 1996 | Graphics | Texture-mapped 3D. |
 
 Optional, if time allows: Z80 → Sega Master System, ARM7TDMI → Game Boy Advance, 8087 floating point, Pentium.
 
