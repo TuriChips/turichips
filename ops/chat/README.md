@@ -8,6 +8,7 @@ A minimal Slack-style app for talking to the agents. The UI is for reading and c
 - **Sessions:** each agent has one Claude session per DM, per channel and per thread. DM and channel sessions restart after 4 hours of silence.
 - **Workspaces:** each agent works in its own git worktree at `~/work/<agent>` on branch `agent/<agent>`. Company docs are always read fresh from `origin/main`.
 - **Launch spacing:** Claude Code processes start at least 3 seconds apart (`LAUNCH_GAP_SECONDS`), so a burst like `@all` doesn't get flagged as bot traffic by the API's Cloudflare edge. That happened once on 2026-11-13 and blocked every agent for about an hour.
+- **Models:** pinned per agent in `config.py`: Opus 5.5 for Vera and Rook, Sonnet 5.5 for the rest. The router uses Haiku.
 - **Office:** the 🏢 Office button shows the team as pixel-art characters in an office (`static/office.js`, original art drawn in code). Working agents sit at their desks and type; idle ones wander to the lounge. New messages pop up as speech bubbles, and clicking someone opens their DM.
 - **Scripts:** `python post.py <channel> <author> "text"` posts a message, for example from scheduled standups.
 

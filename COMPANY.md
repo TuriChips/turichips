@@ -84,17 +84,17 @@ Times agents asked the manager to step in is the number that measures the missio
 Week of 2026-11-13: set up the repo, the toolchain and the agent start-up scripts. Agree the roadmap.
 
 ## 7. Team
-| Name | Role | Agent file | Owns |
-|------|------|------------|------|
-| Sai | Manager (human) | none | direction, this document, merges all PRs |
-| Vera | Architect | agents/architect.md | docs/spec.md, docs/blocks.md |
-| Theo | Designer A (control side) | agents/designer-a.md | rtl/control/, rtl/top.v |
-| Mira | Designer B (data side) | agents/designer-b.md | rtl/datapath/ |
-| Quinn | Verification Engineer A (test builder) | agents/verification-a.md | tb/, tests/ |
-| Rook | Verification Engineer B (breaker) | agents/verification-b.md | ref/, tests/random/ |
-| Otto | Infrastructure Engineer | agents/infrastructure.md | scripts/, Makefile, .github/ |
-| Petra | Physical Design Engineer | agents/physical-design.md | synth/ |
-| Juno | Software and Docs Engineer | agents/software-docs.md | sw/, README.md, docs/release.md |
+| Name | Role | Agent file | Owns | Model |
+|------|------|------------|------|-------|
+| Sai | Manager (human) | none | direction, this document, merges all PRs | human |
+| Vera | Architect | agents/architect.md | docs/spec.md, docs/blocks.md | Opus 5.5 |
+| Theo | Designer A (control side) | agents/designer-a.md | rtl/control/, rtl/top.v | Sonnet 5.5 |
+| Mira | Designer B (data side) | agents/designer-b.md | rtl/datapath/ | Sonnet 5.5 |
+| Quinn | Verification Engineer A (test builder) | agents/verification-a.md | tb/, tests/ | Sonnet 5.5 |
+| Rook | Verification Engineer B (breaker) | agents/verification-b.md | ref/, tests/random/ | Opus 5.5 |
+| Otto | Infrastructure Engineer | agents/infrastructure.md | scripts/, Makefile, .github/ | Sonnet 5.5 |
+| Petra | Physical Design Engineer | agents/physical-design.md | synth/ | Sonnet 5.5 |
+| Juno | Software and Docs Engineer | agents/software-docs.md | sw/, README.md, docs/release.md | Sonnet 5.5 |
 
 ## 8. Meetings and reporting
 - **Standup:** TODO (days and time). Each agent appends to `logs/standup.md` (format in `agents/_rules.md`).
@@ -105,5 +105,6 @@ Append-only. Date, decision, why.
 - 2026-11-13: Company founded as TuriChips. Eight roles defined.
 - 2026-11-13: Finish lines set: main goal is a RISC-V CPU, bigger vision is an ML accelerator. Verilator for simulation, no FPGA.
 - 2026-11-13: Agents named, each with a personality: Vera, Theo, Mira, Quinn, Rook, Otto, Petra, Juno.
+- 2026-11-13: Models pinned per agent: Opus 5.5 for Vera (spec errors spread to everyone) and Rook (subtle bugs), Sonnet 5.5 for the rest.
 - 2026-11-13: Two phases: historic rebuilds first, then our own designs in families (R family = RISC-V, M family = ML) built from a shared block library.
 - 2026-11-13: Simulation only, no manufacturing. Chips are rebuilt in historical order across four tracks: CPUs → retro machines → graphics → ML.

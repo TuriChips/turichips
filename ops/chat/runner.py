@@ -61,7 +61,7 @@ async def prepare(agent: str) -> tuple[Path, str]:
 async def run_turn(agent: str, message: str, session_id: str, resume: bool) -> tuple[str, bool]:
     """Returns (reply text, ok). The session only counts as started when ok is True."""
     wt, system_prompt = await prepare(agent)
-    cmd = [CLAUDE, "-p", message, "--output-format", "json",
+    cmd = [CLAUDE, "-p", message, "--output-format", "json", "--model", AGENTS[agent]["model"],
            "--append-system-prompt", system_prompt,
            "--dangerously-skip-permissions"]  # runs as the isolated `turichips` user
     cmd += ["--resume", session_id] if resume else ["--session-id", session_id]

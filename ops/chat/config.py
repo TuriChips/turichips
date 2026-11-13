@@ -13,15 +13,17 @@ CHANNELS = [
 ]
 
 # Every agent also gets a direct-message channel: dm-<id>.
+# model: pinned so a change in Claude Code's default never silently changes an agent.
+# Opus for Vera (spec errors spread to everyone) and Rook (subtle bugs); Sonnet for the rest.
 AGENTS = {
-    "vera":  {"name": "Vera",  "file": "architect",       "role": "Architect",                         "color": "#7c3aed"},
-    "theo":  {"name": "Theo",  "file": "designer-a",      "role": "Designer A (control)",              "color": "#2563eb"},
-    "mira":  {"name": "Mira",  "file": "designer-b",      "role": "Designer B (data)",                 "color": "#0891b2"},
-    "quinn": {"name": "Quinn", "file": "verification-a",  "role": "Verification A (test builder)",     "color": "#059669"},
-    "rook":  {"name": "Rook",  "file": "verification-b",  "role": "Verification B (breaker)",          "color": "#dc2626"},
-    "otto":  {"name": "Otto",  "file": "infrastructure",  "role": "Infrastructure",                    "color": "#64748b"},
-    "petra": {"name": "Petra", "file": "physical-design", "role": "Physical Design",                   "color": "#d97706"},
-    "juno":  {"name": "Juno",  "file": "software-docs",   "role": "Software and Docs",                 "color": "#db2777"},
+    "vera":  {"name": "Vera",  "file": "architect",       "role": "Architect",                         "model": "claude-opus-5-5", "color": "#7c3aed"},
+    "theo":  {"name": "Theo",  "file": "designer-a",      "role": "Designer A (control)",              "model": "claude-sonnet-5-5", "color": "#2563eb"},
+    "mira":  {"name": "Mira",  "file": "designer-b",      "role": "Designer B (data)",                 "model": "claude-sonnet-5-5", "color": "#0891b2"},
+    "quinn": {"name": "Quinn", "file": "verification-a",  "role": "Verification A (test builder)",     "model": "claude-sonnet-5-5", "color": "#059669"},
+    "rook":  {"name": "Rook",  "file": "verification-b",  "role": "Verification B (breaker)",          "model": "claude-opus-5-5", "color": "#dc2626"},
+    "otto":  {"name": "Otto",  "file": "infrastructure",  "role": "Infrastructure",                    "model": "claude-sonnet-5-5", "color": "#64748b"},
+    "petra": {"name": "Petra", "file": "physical-design", "role": "Physical Design",                   "model": "claude-sonnet-5-5", "color": "#d97706"},
+    "juno":  {"name": "Juno",  "file": "software-docs",   "role": "Software and Docs",                 "model": "claude-sonnet-5-5", "color": "#db2777"},
 }
 
 ROUTER_DEFAULT = "vera"
