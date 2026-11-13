@@ -81,7 +81,7 @@ async def post(m: NewMessage):
 
 async def dispatch(channel, text, parent_id, msg_id):
     for agent, reply_parent, key, idle in await route(channel, text, parent_id, msg_id):
-        asyncio.create_task(respond(agent, channel, reply_parent, key, idle, text))
+        asyncio.create_task(respond(agent, channel, reply_parent, key, idle, text, msg_id))
 
 
 async def route(channel, text, parent_id, msg_id):
@@ -93,28 +93,31 @@ async def route(channel, text, parent_id, msg_id):
         return [(agent, parent_id, f"thread:{parent_id}:{agent}", None)]
     agents = tagged(text)
     if parent_id is None:
+        # Main channel: agents reply inline, like a normal group chat. Threads only when Sai opens one.
         if not agents:
             routing[msg_id] = True
             try:
-                agents = await pick(channel, text)
+                agents = await pick(channel, text, lines(db.channel_context(channel, msg_id, limit=10)))
             finally:
                 routing.pop(msg_id, None)
-        return [(a, msg_id, f"thread:{msg_id}:{a}", None) for a in agents]
+        return [(a, None, f"chan:{channel}:{a}", DM_IDLE_RESET_SECONDS) for a in agents]
     if not agents:
         last = db.last_agent_in_thread(parent_id, list(AGENTS))
         agents = [last] if last else await pick(channel, text, transcript(parent_id, include_last=True))
     return [(a, parent_id, f"thread:{parent_id}:{a}", None) for a in agents]
 
 
-def transcript(parent_id, include_last=False):
-    parent = db.get(parent_id)
-    lines = [parent] + db.thread(parent_id)
-    lines = lines if include_last else lines[:-1]
+def lines(messages):
     who = lambda a: AGENTS[a]["name"] if a in AGENTS else MANAGER["name"]
-    return "\n".join(f"{who(x['author'])}: {x['text']}" for x in lines)
+    return "\n".join(f"{who(x['author'])}: {x['text']}" for x in messages)
 
 
-async def respond(agent, channel, reply_parent, key, idle, text):
+def transcript(parent_id, include_last=False):
+    msgs = [db.get(parent_id)] + db.thread(parent_id)
+    return lines(msgs if include_last else msgs[:-1])
+
+
+async def respond(agent, channel, reply_parent, key, idle, text, msg_id):
     where = "a direct message" if channel.startswith("dm-") else f"#{channel}"
     async with agent_locks[agent]:
         session = db.session(key, idle)
@@ -123,6 +126,13 @@ async def respond(agent, channel, reply_parent, key, idle, text):
         prompt = f"[{where}] Sai: {text}"
         if not resume and reply_parent is not None and db.thread(reply_parent):
             prompt = f"[{where}, thread so far]\n{transcript(reply_parent)}\n\n{prompt}"
+        elif reply_parent is None and not channel.startswith("dm-"):
+            # Group chat: show everything said since this agent was last prompted (recent history on a fresh
+            # session). Its own replies are already in its session, so they are skipped when resuming.
+            context = db.channel_context(channel, msg_id, db.seen(key) if resume else 0)
+            context = [m for m in context if not (resume and m["author"] == agent)]
+            if context:
+                prompt = f"[{where}, messages since you last spoke]\n{lines(context)}\n\n{prompt}"
         async with slots:
             working[agent] = {"channel": channel, "parent_id": reply_parent}
             try:
@@ -132,5 +142,5 @@ async def respond(agent, channel, reply_parent, key, idle, text):
             finally:
                 working.pop(agent, None)
         if ok:
-            db.save_session(key, session)
+            db.save_session(key, session, msg_id)
         db.add(channel, agent, answer, reply_parent)

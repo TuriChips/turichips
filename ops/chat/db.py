@@ -25,6 +25,9 @@ def init():
         create table if not exists sessions(
             key text primary key, session_id text not null, last_ts real not null);
         """)
+        cols = [r[1] for r in c.execute("pragma table_info(sessions)")]
+        if "seen_id" not in cols:  # last message id the agent has been shown in this conversation
+            c.execute("alter table sessions add column seen_id integer not null default 0")
 
 
 _TOP = """select m.*, (select count(*) from messages r where r.parent_id = m.id) as reply_count,
@@ -85,8 +88,24 @@ def session(key, idle_reset=None):
     return r["session_id"]
 
 
-def save_session(key, session_id):
+def seen(key):
     with conn() as c:
-        c.execute("insert into sessions(key,session_id,last_ts) values(?,?,?) "
-                  "on conflict(key) do update set session_id=excluded.session_id,last_ts=excluded.last_ts",
-                  (key, session_id, time.time()))
+        r = c.execute("select seen_id from sessions where key=?", (key,)).fetchone()
+    return r[0] if r else 0
+
+
+def save_session(key, session_id, seen_id=0):
+    with conn() as c:
+        c.execute("insert into sessions(key,session_id,last_ts,seen_id) values(?,?,?,?) "
+                  "on conflict(key) do update set session_id=excluded.session_id,last_ts=excluded.last_ts,"
+                  "seen_id=excluded.seen_id", (key, session_id, time.time(), seen_id))
+
+
+def channel_context(channel, before_id, after_id=0, limit=30):
+    """Top-level messages in a channel between two ids, oldest first."""
+    with conn() as c:
+        rows = c.execute("select * from messages where channel=? and parent_id is null and id<? and id>? "
+                         "order by id desc limit ?", (channel, before_id, after_id, limit)).fetchall()
+    return [dict(r) for r in reversed(rows)]
+
+

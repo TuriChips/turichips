@@ -26,7 +26,8 @@ function renderMessage(m, prev, inThread) {
   const replies = !inThread && m.reply_count
     ? `<div class="replies" data-thread="${m.id}">${m.reply_count} ${m.reply_count === 1 ? "reply" : "replies"}
        <span>Last reply ${time(m.last_reply_ts)}</span></div>` : "";
-  return `<div class="msg${cont ? " cont" : ""}">${avatar(p)}<div class="body">
+  const action = inThread ? "" : `<button class="msg-action" data-thread="${m.id}" title="Reply in thread">💬<span> Reply in thread</span></button>`;
+  return `<div class="msg${cont ? " cont" : ""}">${action}${avatar(p)}<div class="body">
     <div class="meta"><b>${escape(p.name)}</b><span class="role">${escape(p.role)}</span><time>${time(m.ts)}</time></div>
     <div class="text">${md(m.text)}</div>${replies}</div></div>`;
 }

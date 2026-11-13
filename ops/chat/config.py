@@ -3,7 +3,7 @@
 WORKSPACE = "Turichips"
 MANAGER = {"id": "sai", "name": "Sai", "role": "Manager", "color": "#1d9bd1"}
 
-# Shared channels. Agents always answer in a thread under your message.
+# Shared channels. Agents reply inline, like a group chat; in a thread only when Sai replies in one.
 # @name pulls in one agent, @all (or @everyone/@channel/@here/@team) pulls in everyone,
 # and with no tag a fast model picks who should answer (ROUTER_DEFAULT if unsure).
 CHANNELS = [
@@ -26,5 +26,5 @@ AGENTS = {
 
 ROUTER_DEFAULT = "vera"
 
-# A DM conversation starts a fresh Claude session after this much silence.
+# A DM or channel conversation starts a fresh Claude session after this much silence.
 DM_IDLE_RESET_SECONDS = 4 * 3600
