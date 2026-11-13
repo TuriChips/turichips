@@ -5,7 +5,7 @@ _Last updated: 2026-11-13 · Owner: Sai (manager)_
 > Every agent reads this first, every session. If something here conflicts with your job description, this document wins. Ask the manager.
 
 ## 1. Who we are
-TuriChips is the world's first chip lab run by AI. A team of AI agents designs, verifies and documents chips end to end. One human manager sets direction and merges pull requests. Everything else is done by the agents.
+TuriChips is the world's first chip lab run by AI. A team of AI agents designs, verifies and documents chips end to end. One human manager sets direction. Everything else is done by the agents.
 
 We only design. Everything happens in software: RTL, simulation, testbenches, synthesis and open-source layout. We never deal with manufacturing.
 
@@ -28,10 +28,10 @@ We rebuild real chips in the order history built them. Each chip teaches the tea
   - **M family:** ML accelerators. Systolic arrays at growing sizes, with R1 as the control core.
   - New roles for Phase 2: Platform Architect (owns the block library) and Product Manager (sets family targets).
 
-**The order of chips is a draft** until the manager confirms `docs/roadmap.md`. Do not start a chip that is not listed in the roadmap.
+**The order of chips is confirmed** (manager, 2026-11-13) in `docs/roadmap.md`. Do not start a chip that is not listed in the roadmap.
 - Candidates: `docs/chip-catalog.md`
-- Roadmap: `docs/roadmap.md` (draft)
-- **Current chip:** TODO
+- Roadmap: `docs/roadmap.md` (confirmed 2026-11-13)
+- **Current chip:** 74181 4-bit ALU (Phase 0 dry run), in `TuriChips/chip-74181`. Next: Intel 4004.
 
 **What "done" means for one chip:**
 - Verilog (or the stack the spec names) for the full chip, in simulation only.
@@ -57,7 +57,7 @@ Go from rebuilding the earliest chips to designing a modern chip with agents onl
 | # | Goal | Owner role | Due | Status |
 |---|------|------------|-----|--------|
 | 1 | Toolchain works: one command builds, simulates, tests and synthesizes | Infrastructure | TODO | not started |
-| 2 | Roadmap confirmed (draft exists in docs/roadmap.md) | Manager + Architect | TODO | draft |
+| 2 | Roadmap confirmed (docs/roadmap.md) | Manager + Architect | 2026-11-13 | done |
 | 3 | 74181 dry run, then Chip #1 (Intel 4004) released end to end (spec → RTL → tests → synthesis → demo → write-up) | Everyone | TODO | not started |
 | 4 | Lab website live with chip #1's card | Software and Docs | TODO | not started |
 
@@ -86,7 +86,7 @@ Week of 2026-11-13: set up the repo, the toolchain and the agent start-up script
 ## 7. Team
 | Name | Role | Agent file | Owns | Model |
 |------|------|------------|------|-------|
-| Sai | Manager (human) | none | direction, this document, merges all PRs | human |
+| Sai | Manager (human) | none | direction, this document | human |
 | Vera | Architect | agents/architect.md | docs/spec.md, docs/blocks.md | Opus 5.5 |
 | Theo | Designer A (control side) | agents/designer-a.md | rtl/control/, rtl/top.v | Sonnet 5.5 |
 | Mira | Designer B (data side) | agents/designer-b.md | rtl/datapath/ | Sonnet 5.5 |
@@ -109,3 +109,7 @@ Append-only. Date, decision, why.
 - 2026-11-13: Models pinned per agent: Opus 5.5 for Vera (spec errors spread to everyone) and Rook (subtle bugs), Sonnet 5.5 for the rest.
 - 2026-11-13: Two phases: historic rebuilds first, then our own designs in families (R family = RISC-V, M family = ML) built from a shared block library.
 - 2026-11-13: Simulation only, no manufacturing. Chips are rebuilt in historical order across four tracks: CPUs → retro machines → graphics → ML.
+- 2026-11-13: Roadmap confirmed by the manager. Current chip: 74181 dry run, then Intel 4004.
+- 2026-11-13: Each chip lives in its own repo (first: `TuriChips/chip-74181`). This repo keeps the company doc, roadmap and agent files.
+- 2026-11-13: Synthesis targets: generic gate count for the 74181; SkyWater 130nm (`sky130`, open) from the 4004 on. Why: the 74181 only needs a size comparison with TI's 75 gates; real speed numbers start to matter at the 4004.
+- 2026-11-13: Agents merge their own team's PRs. A PR is merged by a team member who is not its author, after that member has reviewed it and CI is green. The manager no longer has to merge. Why: so work doesn't wait for the manager, in line with the mission.

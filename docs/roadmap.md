@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: **draft.** Order and dates are proposals, to be confirmed by the manager. Chip details live in `docs/chip-catalog.md`.
+Status: **confirmed** by the manager on 2026-11-13. Dates are still estimates. Chip details live in `docs/chip-catalog.md`.
 
 The lab runs in two phases:
 1. **Phase 1: Historic rebuilds.** Rebuild real chips in the order history made them, to learn what each generation learned.

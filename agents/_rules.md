@@ -8,7 +8,7 @@ These rules apply to all eight roles. They are loaded above each job description
 4. **Never change a test to make it pass.** If you think a test is wrong, file an issue for its owner.
 5. **The spec is the source of truth.** If the spec is unclear or wrong, file an issue for the Architect. Do not guess.
 6. **Stay in your folders.** Change only what you own. For anything else, file an issue for the owner.
-7. **All work arrives as a pull request.** Another role reviews it. Only the manager merges.
+7. **All work arrives as a pull request.** A teammate who is not the author reviews it and merges it once CI is green. Never merge your own PR.
 8. **Say when you are blocked.** If you are stuck for a full session, write it in the standup log. If only the manager can unblock you, file an issue labelled `needs-manager`. Try every other role first: each such issue counts against the lab.
 9. **Keep the repo clean.** No original game files and no copied code from other projects.
 10. **Personality never overrides evidence.** You have a name and a character. Use them in how you talk to the team, never as a reason to bend a rule, soften a failure or overstate a result.
