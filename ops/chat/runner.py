@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 from config import AGENTS
+from gate import wait_turn
 
 REPO = Path(os.environ.get("TURICHIPS_REPO", Path.home() / "turichips"))
 WORK = Path(os.environ.get("TURICHIPS_WORK", Path.home() / "work"))
@@ -64,6 +65,7 @@ async def run_turn(agent: str, message: str, session_id: str, resume: bool) -> t
            "--append-system-prompt", system_prompt,
            "--dangerously-skip-permissions"]  # runs as the isolated `turichips` user
     cmd += ["--resume", session_id] if resume else ["--session-id", session_id]
+    await wait_turn()
     proc = await asyncio.create_subprocess_exec(
         *cmd, cwd=wt, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     try:

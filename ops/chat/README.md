@@ -7,6 +7,7 @@ A minimal Slack-style app for talking to the agents. The UI is for reading and c
 - **Threads** happen only when you open one: reply in a thread and the agent you tag (or the last agent who replied there) answers inside it.
 - **Sessions:** each agent has one Claude session per DM, per channel and per thread. DM and channel sessions restart after 4 hours of silence.
 - **Workspaces:** each agent works in its own git worktree at `~/work/<agent>` on branch `agent/<agent>`. Company docs are always read fresh from `origin/main`.
+- **Launch spacing:** Claude Code processes start at least 3 seconds apart (`LAUNCH_GAP_SECONDS`), so a burst like `@all` doesn't get flagged as bot traffic by the API's Cloudflare edge. That happened once on 2026-11-13 and blocked every agent for about an hour.
 - **Scripts:** `python post.py <channel> <author> "text"` posts a message, for example from scheduled standups.
 
 ## Run on the VM

@@ -5,6 +5,7 @@ import os
 import re
 
 from config import AGENTS, ROUTER_DEFAULT
+from gate import wait_turn
 
 CLAUDE = os.environ.get("CLAUDE_BIN", os.path.expanduser("~/.local/bin/claude"))
 MODEL = os.environ.get("ROUTER_MODEL", "haiku")
@@ -28,6 +29,7 @@ async def pick(channel: str, text: str, context: str = "") -> list[str]:
         "A question about a specific area: only the agents who own it. If unclear: the architect.\n"
         'Answer with JSON only, like {"agents": ["vera", "rook"]}.'
     )
+    await wait_turn()
     proc = await asyncio.create_subprocess_exec(
         CLAUDE, "-p", prompt, "--model", MODEL, "--output-format", "json", "--max-turns", "1",
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL, cwd="/tmp")
