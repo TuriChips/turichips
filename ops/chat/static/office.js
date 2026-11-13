@@ -60,7 +60,7 @@
   ];
 
   // ---------- State ----------
-  let canvas, ctx, low, lctx, meta, getWorking, onPick, raf = null, last = 0, t = 0;
+  let canvas, ctx, low, lctx, g, scratch, sctx, meta, getWorking, onPick, raf = null, last = 0, t = 0;
   let people = {}, logo = null, hover = null, view = { s: 1, regions: [] };
   // Tall screens (phones) split the scene: desks on top, lounge below. SPLIT is the scene x where the lounge starts.
   const SPLIT = 258;
@@ -136,7 +136,30 @@
   }
 
   // ---------- Drawing (low-res) ----------
-  const R = (x, y, w, h, c) => { lctx.fillStyle = c; lctx.fillRect(Math.round(x), Math.round(y), w, h); };
+  const R = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), w, h); };
+
+  // Every object gets a 1px dark outline so it stands out from the floor. The object is drawn alone on a
+  // scratch layer, the outline is traced around its solid pixels, and the result is copied into the scene.
+  const OUTLINE = [20, 14, 34];
+  function outlined(x, y, w, h, fn) {
+    const x0 = Math.max(0, Math.floor(x) - 2), y0 = Math.max(0, Math.floor(y) - 2);
+    const x1 = Math.min(W, Math.ceil(x + w) + 2), y1 = Math.min(H, Math.ceil(y + h) + 2);
+    const bw = x1 - x0, bh = y1 - y0;
+    if (bw <= 0 || bh <= 0) return;
+    sctx.clearRect(x0, y0, bw, bh);
+    g = sctx; fn(); g = lctx;
+    const img = sctx.getImageData(x0, y0, bw, bh), d = img.data, src = new Uint8ClampedArray(d);
+    const solid = (i, j) => i >= 0 && j >= 0 && i < bw && j < bh && src[(j * bw + i) * 4 + 3] >= 200;
+    for (let j = 0; j < bh; j++) for (let i = 0; i < bw; i++) {
+      const k = (j * bw + i) * 4;
+      if (src[k + 3] >= 200) continue;
+      if (solid(i - 1, j) || solid(i + 1, j) || solid(i, j - 1) || solid(i, j + 1)) {
+        d[k] = OUTLINE[0]; d[k + 1] = OUTLINE[1]; d[k + 2] = OUTLINE[2]; d[k + 3] = 255;
+      }
+    }
+    sctx.putImageData(img, x0, y0);
+    lctx.drawImage(scratch, x0, y0, bw, bh, x0, y0, bw, bh);
+  }
 
   function drawRoom() {
     // floor planks
@@ -152,23 +175,33 @@
     R(0, WALL - 6, W, 6, "#3e3060");
     R(0, WALL - 1, W, 1, "#1d162e");
     for (const wx of [20, 96, 236]) {          // windows
-      R(wx, 8, 40, 24, "#1b1530");
-      R(wx + 2, 10, 36, 20, "#8fd3fe");
-      R(wx + 2, 22, 36, 8, "#bde6ff");
-      R(wx + 8 + ((t * 2) % 30), 13, 8, 3, "#ffffff");
-      R(wx + 19, 10, 2, 20, "#1b1530");
+      outlined(wx, 8, 40, 24, () => {
+        R(wx, 8, 40, 24, "#1b1530");
+        R(wx + 2, 10, 36, 20, "#8fd3fe");
+        R(wx + 2, 22, 36, 8, "#bde6ff");
+        R(wx + 8 + ((t * 2) % 30), 13, 8, 3, "#ffffff");
+        R(wx + 19, 10, 2, 20, "#1b1530");
+      });
     }
     // logo poster
-    R(160, 6, 40, 30, "#1b1530"); R(162, 8, 36, 26, "#120d22");
-    if (logo && logo.complete) lctx.drawImage(logo, 167, 9, 26, 24);
+    outlined(160, 6, 40, 30, () => {
+      R(160, 6, 40, 30, "#1b1530"); R(162, 8, 36, 26, "#120d22");
+      if (logo && logo.complete) { g.imageSmoothingEnabled = false; g.drawImage(logo, 167, 8, 26, 26); }
+    });
     // whiteboard with this quarter's plan
-    R(300, 8, 60, 26, "#cfd6de"); R(302, 10, 56, 22, "#f4f7fa");
-    R(306, 14, 22, 2, "#7c3aed"); R(306, 19, 40, 1, "#64748b"); R(306, 23, 32, 1, "#64748b"); R(306, 27, 36, 1, "#dc2626");
+    outlined(300, 8, 60, 26, () => {
+      R(300, 8, 60, 26, "#cfd6de"); R(302, 10, 56, 22, "#f4f7fa");
+      R(306, 14, 22, 2, "#7c3aed"); R(306, 19, 40, 1, "#64748b"); R(306, 23, 32, 1, "#64748b"); R(306, 27, 36, 1, "#dc2626");
+    });
     // clock
-    R(214, 12, 12, 12, "#1b1530"); R(215, 13, 10, 10, "#f4f7fa"); R(219, 15, 1, 4, "#1d1c1d"); R(220, 18, 3, 1, "#1d1c1d");
+    outlined(214, 12, 12, 12, () => {
+      R(214, 12, 12, 12, "#1b1530"); R(215, 13, 10, 10, "#f4f7fa"); R(219, 15, 1, 4, "#1d1c1d"); R(220, 18, 3, 1, "#1d1c1d");
+    });
     // lounge rug
-    R(286, 116, 90, 72, "#4b3b78"); R(290, 120, 82, 64, "#5d4a91");
-    for (let i = 0; i < 6; i++) R(294 + i * 13, 150, 6, 2, "#7c66b8");
+    outlined(286, 116, 90, 72, () => {
+      R(286, 116, 90, 72, "#4b3b78"); R(290, 120, 82, 64, "#5d4a91");
+      for (let i = 0; i < 6; i++) R(294 + i * 13, 150, 6, 2, "#7c66b8");
+    });
   }
 
   function sprite(x, y, look, shirt, pose, frame, typing) {
@@ -198,7 +231,7 @@
     R(d.x + 2, d.y + 16, 3, 3, "#4a2e14"); R(d.x + DESK_W - 5, d.y + 16, 3, 3, "#4a2e14");
     // monitor (back faces us) on the left, glow when busy
     const mx = d.x + 3, my = d.y - 9;
-    if (busy) { lctx.globalAlpha = 0.35 + 0.15 * Math.sin(t * 6); R(mx - 2, my - 2, 16, 13, "#7dd3fc"); lctx.globalAlpha = 1; }
+    if (busy) { g.globalAlpha = 0.35 + 0.15 * Math.sin(t * 6); R(mx - 2, my - 2, 16, 13, "#7dd3fc"); g.globalAlpha = 1; }
     R(mx, my, 12, 9, "#23232e"); R(mx + 1, my + 1, 10, 7, "#2e2e3c"); R(mx + 5, my + 9, 2, 2, "#23232e");
     if (busy) R(mx + 10, my + 7, 1, 1, "#4ade80");
     // keyboard, mug, papers
@@ -233,18 +266,21 @@
     const items = [];
     for (const d of desks) {
       if (!people[d.id]) continue;
-      items.push({ key: d.seat.y + 14, draw: () => drawChair(d.seat.x, d.seat.y) });
-      items.push({ key: d.y + 16, draw: () => drawDesk(d, !!working[d.id] && isSeated(people[d.id])) });
+      items.push({ key: d.seat.y + 14, draw: () => outlined(d.seat.x - 1, d.seat.y + 4, 12, 9, () => drawChair(d.seat.x, d.seat.y)) });
+      items.push({ key: d.y + 16, draw: () => outlined(d.x - 2, d.y - 11, 48, 30, () => drawDesk(d, !!working[d.id] && isSeated(people[d.id]))) });
     }
-    items.push({ key: 60, draw: drawCouchBack }, { key: 80, draw: drawCouchFront }, { key: 158, draw: drawCoffee });
-    items.push({ key: 205, draw: () => drawPlant(276, 188) }, { key: 63, draw: () => drawPlant(372, 46) }, { key: 63, draw: () => drawPlant(268, 46) });
+    items.push({ key: 60, draw: () => outlined(294, 58, 76, 12, drawCouchBack) },
+      { key: 80, draw: () => outlined(292, 64, 80, 16, drawCouchFront) },
+      { key: 158, draw: () => outlined(354, 128, 20, 30, drawCoffee) });
+    const plant = (x, y) => () => outlined(x, y, 12, 17, () => drawPlant(x, y));
+    items.push({ key: 205, draw: plant(276, 188) }, { key: 63, draw: plant(372, 46) }, { key: 63, draw: plant(268, 46) });
     for (const p of Object.values(people)) {
       const a = meta.agents[p.id], look = LOOKS[p.id] || LOOKS.theo;
       const frame = Math.floor(t * 6);
       const typing = !!working[p.id] && isSeated(p) && frame % 2 === 0;
       items.push({ key: p.y + 16, draw: () => {
-        sprite(p.x, p.y, look, a.color, p.pose, frame, typing);
-        if (hover === p.id) { lctx.globalAlpha = 0.25; R(p.x - 1, p.y - 3, 12, 20, "#ffffff"); lctx.globalAlpha = 1; }
+        outlined(p.x - 1, p.y - 3, 12, 20, () => sprite(p.x, p.y, look, a.color, p.pose, frame, typing));
+        if (hover === p.id) { g.globalAlpha = 0.25; R(p.x - 1, p.y - 3, 12, 20, "#ffffff"); g.globalAlpha = 1; }
       } });
     }
     items.sort((a, b) => a.key - b.key).forEach((i) => i.draw());
@@ -353,7 +389,9 @@
     start(el, m, workingFn, pickFn) {
       canvas = el; ctx = canvas.getContext("2d"); meta = m; getWorking = workingFn; onPick = pickFn;
       if (!low) {
-        low = document.createElement("canvas"); low.width = W; low.height = H; lctx = low.getContext("2d");
+        low = document.createElement("canvas"); low.width = W; low.height = H; lctx = low.getContext("2d"); g = lctx;
+        scratch = document.createElement("canvas"); scratch.width = W; scratch.height = H;
+        sctx = scratch.getContext("2d", { willReadFrequently: true });
         logo = new Image(); logo.src = "/static/brand/logo-256.png";
         makePeople();
         canvas.addEventListener("mousemove", (e) => { hover = pick(e); canvas.style.cursor = hover ? "pointer" : "default"; });
