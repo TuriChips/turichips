@@ -44,6 +44,11 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
   background: #2bac76; border: 2px solid var(--sidebar); }
 .mini .dot.busy { background: #e8912d; }
 
+/* Office view */
+#view-list { margin-top: 6px; }
+.office { flex: 1; min-height: 0; background: #120d22; position: relative; }
+.office canvas { display: block; }
+
 /* Main and thread panes */
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .thread { width: 420px; flex: none; border-left: 1px solid var(--line); display: flex; flex-direction: column; }

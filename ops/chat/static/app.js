@@ -56,6 +56,7 @@ function renderSidebar() {
     const busy = S.working[id] ? " busy" : "";
     return item(`dm-${id}`, `<div class="mini" style="background:${a.color}">${a.name[0]}<span class="dot${busy}"></span></div>${a.name}`);
   }).join("");
+  $("view-list").firstElementChild.className = S.current === null ? "active" : "";
   $("channel-list").innerHTML = ch;
   $("dm-list").innerHTML = dm;
 }
@@ -67,6 +68,7 @@ function item(id, inner) {
 }
 
 function renderMain() {
+  if (S.current === null) { renderOfficeStatus(); return; }
   const list = S.cache[S.current] || [];
   const el = $("messages");
   stickToBottom(el, () => {
@@ -88,7 +90,13 @@ function renderThread() {
   renderWorking();
 }
 
+function renderOfficeStatus() {
+  const busy = Object.entries(S.working).map(([a, w]) => `${S.meta.agents[a].name} (${label(w.channel)})`);
+  $("topic").textContent = busy.length ? `Working: ${busy.join(", ")}` : "Everyone's free. Click someone to message them.";
+}
+
 function renderWorking() {
+  if (S.current === null) { $("working").textContent = ""; return; }
   const names = (pred) => Object.entries(S.working).filter(([, w]) => pred(w)).map(([a]) => S.meta.agents[a].name);
   const line = (n) => n.length ? `${n.join(", ")} ${n.length === 1 ? "is" : "are"} working…` : "";
   const deciding = (S.cache[S.current] || []).some((m) => S.routing.includes(m.id));
@@ -96,7 +104,27 @@ function renderWorking() {
   $("thread-working").textContent = S.threadId ? line(names((w) => w.parent_id === S.threadId)) : "";
 }
 
+function setOfficeVisible(on) {
+  $("office").classList.toggle("hidden", !on);
+  for (const id of ["messages", "composer"]) $(id).classList.toggle("hidden", on);
+  if (on) Office.start($("office-canvas"), S.meta, () => S.working, (agent) => openChannel(`dm-${agent}`));
+  else Office.stop();
+}
+
+function openOffice() {
+  S.current = null;
+  $("app").classList.remove("nav-open");
+  $("title").textContent = "🏢 Office";
+  closeThread();
+  setOfficeVisible(true);
+  renderSidebar();
+  renderOfficeStatus();
+  history.replaceState(null, "", "#office");
+}
+
 async function openChannel(id) {
+  setOfficeVisible(false);
+  history.replaceState(null, "", `#${id}`);
   S.current = id;
   S.unread[id] = 0;
   $("app").classList.remove("nav-open");
@@ -138,6 +166,7 @@ async function send(text, parentId) {
 }
 
 function ingest(m) {
+  if (S.meta.agents[m.author]) Office.say(m.author, m.text);
   if (m.parent_id === null) {
     const list = S.cache[m.channel];
     if (list && !list.some((x) => x.id === m.id)) list.push(m);
@@ -183,6 +212,7 @@ async function main() {
   document.addEventListener("click", (e) => {
     const ch = e.target.closest("[data-channel]");
     if (ch) openChannel(ch.dataset.channel);
+    if (e.target.closest("[data-view]")) openOffice();
     const th = e.target.closest("[data-thread]");
     if (th) openThread(Number(th.dataset.thread));
   });
@@ -190,8 +220,10 @@ async function main() {
   $("menu").onclick = () => $("app").classList.toggle("nav-open");
   wireComposer($("composer"), $("input"), () => null);
   wireComposer($("thread-composer"), $("thread-input"), () => S.threadId);
+  S.working = (await api(`/api/updates?after=${S.lastId}`)).working;   // so busy agents start at their desks
   const start = location.hash.slice(1);
-  await openChannel(S.meta.channels.some((c) => c.id === start) || start.startsWith("dm-") ? start : "general");
+  if (start === "office") openOffice();
+  else await openChannel(S.meta.channels.some((c) => c.id === start) || start.startsWith("dm-") ? start : "general");
   setInterval(poll, 1500);
 }
 main();
