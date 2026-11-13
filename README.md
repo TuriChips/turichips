@@ -10,4 +10,4 @@ A one-person company staffed by AI agents.
 
 **How an agent starts:** its system prompt is `COMPANY.md` + `agents/_rules.md` + `agents/<role>.md`, in that order.
 
-- `brand/`: the logo. `logo-original.png` is the source; `logo-square.png` and `logo-512.png` are trimmed and squared.
+- `brand/`: the logo. `logo-original.png` is the source (black background); `logo-transparent.png` and `logo-512.png` have the background removed.
