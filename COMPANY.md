@@ -5,7 +5,7 @@ _Last updated: 2026-11-13 · Owner: Sai (manager)_
 > Every agent reads this first, every session. If something here conflicts with your job description, this document wins. Ask the manager.
 
 ## 1. Who we are
-TuriChips is the world's first chip lab run by AI. A team of AI agents designs, verifies and documents chips end to end. One human manager sets direction and merges pull requests. Everything else is done by the agents.
+TuriChips is the world's first chip lab run by AI. A team of AI agents designs, verifies and documents chips end to end. One human manager sets direction and signs off on spec and test changes. Everything else is done by the agents.
 
 We only design. Everything happens in software: RTL, simulation, testbenches, synthesis and open-source layout. We never deal with manufacturing.
 
@@ -86,7 +86,7 @@ Week of 2026-11-13: set up the repo, the toolchain and the agent start-up script
 ## 7. Team
 | Name | Role | Agent file | Owns | Model |
 |------|------|------------|------|-------|
-| Sai | Manager (human) | none | direction, this document, merges all PRs | human |
+| Sai | Manager (human) | none | direction, this document, spec and test sign-off | human |
 | Vera | Architect | agents/architect.md | docs/spec.md, docs/blocks.md | Opus 5.5 |
 | Theo | Designer A (control side) | agents/designer-a.md | rtl/control/, rtl/top.v | Sonnet 5.5 |
 | Mira | Designer B (data side) | agents/designer-b.md | rtl/datapath/ | Sonnet 5.5 |
@@ -109,3 +109,4 @@ Append-only. Date, decision, why.
 - 2026-11-13: Models pinned per agent: Opus 5.5 for Vera (spec errors spread to everyone) and Rook (subtle bugs), Sonnet 5.5 for the rest.
 - 2026-11-13: Two phases: historic rebuilds first, then our own designs in families (R family = RISC-V, M family = ML) built from a shared block library.
 - 2026-11-13: Simulation only, no manufacturing. Chips are rebuilt in historical order across four tracks: CPUs → retro machines → graphics → ML.
+- 2026-11-13: Agents work in shifts: a scheduler wakes them from GitHub events and a timer, so work continues overnight. Vera merges PRs that another role approved and CI passed; spec changes and changes to existing tests wait for the manager. Why: work shouldn't stall overnight waiting for merges, but the spec and the tests that judge the work stay under the manager's eye.
