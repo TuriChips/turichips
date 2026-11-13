@@ -179,7 +179,9 @@
         R(wx, 8, 40, 24, "#1b1530");
         R(wx + 2, 10, 36, 20, "#8fd3fe");
         R(wx + 2, 22, 36, 8, "#bde6ff");
-        R(wx + 8 + ((t * 2) % 30), 13, 8, 3, "#ffffff");
+        // cloud drifts across the glass (wx+2 .. wx+38) and is clipped to it, entering left and leaving right
+        const cx = Math.round(wx + 2 - 8 + ((t * 2 + wx) % 44)), x0 = Math.max(cx, wx + 2), x1 = Math.min(cx + 8, wx + 38);
+        if (x1 > x0) R(x0, 13, x1 - x0, 3, "#ffffff");
         R(wx + 19, 10, 2, 20, "#1b1530");
       });
     }
