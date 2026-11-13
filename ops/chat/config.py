@@ -1,4 +1,5 @@
 """Workspace layout. Channels are added here in code, not from the UI."""
+import os
 
 WORKSPACE = "TuriChips"
 MANAGER = {"id": "sai", "name": "Sai", "role": "Manager", "color": "#1d9bd1"}
@@ -10,7 +11,24 @@ CHANNELS = [
     {"id": "general", "topic": "Company-wide. Tag @name or @all, or just talk and the right people answer."},
     {"id": "standup", "topic": "Standups: Passed / In progress / Blocked."},
     {"id": "reviews", "topic": "Weekly reviews: what shipped, what slipped, what to do better."},
+    {"id": "work", "topic": "Shift log: one line per work turn. /status, /pause, /resume work in any channel."},
 ]
+
+# Shifts (shift.py): agents keep working from GitHub without being messaged.
+SHIFT = {
+    "enabled": os.environ.get("SHIFT_ENABLED", "1") == "1",   # SHIFT_ENABLED=0 turns the scheduler off
+    "org": "TuriChips",              # every repo in this org is scanned for issues and PRs
+    "merger": "vera",                # merges approved, green PRs and keeps the queue full
+    "poll_seconds": 120,             # how often GitHub is read
+    "work_gap_seconds": 5 * 60,      # after a DONE turn, while the agent still has open items
+    "blocked_gap_seconds": 30 * 60,  # after BLOCKED
+    "idle_gap_seconds": 60 * 60,     # after IDLE, or when nothing is assigned
+    "max_parallel": 3,               # work turns at once; leaves room in MAX_PARALLEL_AGENTS for Sai's chat
+    "session_reset_seconds": 12 * 3600,
+}
+
+# Posts from the scheduler itself (command replies) use this author.
+SYSTEM = {"id": "shift", "name": "Shift", "role": "Scheduler", "color": "#475569"}
 
 # Every agent also gets a direct-message channel: dm-<id>.
 # model: pinned so a change in Claude Code's default never silently changes an agent.

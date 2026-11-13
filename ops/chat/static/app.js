@@ -7,7 +7,8 @@ const api = async (path, opts) => {
   return r.json();
 };
 
-const person = (id) => S.meta.agents[id] ? { id, ...S.meta.agents[id] } : S.meta.me;
+const person = (id) => S.meta.agents[id] ? { id, ...S.meta.agents[id] }
+  : (S.meta.system && id === S.meta.system.id) ? S.meta.system : S.meta.me;
 const escape = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const md = (s) => (window.marked && window.DOMPurify)
   ? DOMPurify.sanitize(marked.parse(s, { breaks: true, gfm: true }))
