@@ -1,7 +1,7 @@
 # TuriChips Android app
 
 A Capacitor shell around the chat in `ops/chat`. The app holds no chat code: it opens
-`https://turichips.tail5e9d29.ts.net`, which is the VM's chat served over Tailscale, so web
+`https://turichips.tail3b50cb.ts.net`, which is the VM's chat served over Tailscale, so web
 changes go live without a new build. If the phone can't reach it (Tailscale off), it shows
 `www/offline.html`.
 
