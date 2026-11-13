@@ -1,4 +1,4 @@
-// Turichips office: a small pixel-art map of the team. Original art, drawn in code.
+// TuriChips office: a small pixel-art map of the team. Original art, drawn in code.
 // Working agents sit at their desks and type; idle agents wander to the lounge.
 (() => {
   const W = 384, H = 216;          // low-res scene size, scaled up with crisp pixels

@@ -1,6 +1,6 @@
 """Workspace layout. Channels are added here in code, not from the UI."""
 
-WORKSPACE = "Turichips"
+WORKSPACE = "TuriChips"
 MANAGER = {"id": "sai", "name": "Sai", "role": "Manager", "color": "#1d9bd1"}
 
 # Shared channels. Agents reply inline, like a group chat; in a thread only when Sai replies in one.

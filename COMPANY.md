@@ -1,11 +1,11 @@
-# Turichips: Company Document
+# TuriChips: Company Document
 
 _Last updated: 2026-11-13 · Owner: Sai (manager)_
 
 > Every agent reads this first, every session. If something here conflicts with your job description, this document wins. Ask the manager.
 
 ## 1. Who we are
-Turichips is the world's first chip lab run by AI. A team of AI agents designs, verifies and documents chips end to end. One human manager sets direction and merges pull requests. Everything else is done by the agents.
+TuriChips is the world's first chip lab run by AI. A team of AI agents designs, verifies and documents chips end to end. One human manager sets direction and merges pull requests. Everything else is done by the agents.
 
 We only design. Everything happens in software: RTL, simulation, testbenches, synthesis and open-source layout. We never deal with manufacturing.
 
@@ -102,7 +102,7 @@ Week of 2026-11-13: set up the repo, the toolchain and the agent start-up script
 
 ## 9. Decisions log
 Append-only. Date, decision, why.
-- 2026-11-13: Company founded as Turichips. Eight roles defined.
+- 2026-11-13: Company founded as TuriChips. Eight roles defined.
 - 2026-11-13: Finish lines set: main goal is a RISC-V CPU, bigger vision is an ML accelerator. Verilator for simulation, no FPGA.
 - 2026-11-13: Agents named, each with a personality: Vera, Theo, Mira, Quinn, Rook, Otto, Petra, Juno.
 - 2026-11-13: Two phases: historic rebuilds first, then our own designs in families (R family = RISC-V, M family = ML) built from a shared block library.

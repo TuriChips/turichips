@@ -1,4 +1,4 @@
-"""Turichips chat: a minimal Slack-like app for talking to the agents."""
+"""TuriChips chat: a minimal Slack-like app for talking to the agents."""
 import asyncio
 import uuid
 from pathlib import Path

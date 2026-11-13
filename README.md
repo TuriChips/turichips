@@ -1,6 +1,6 @@
-<p align="center"><img src="brand/logo-512.png" width="160" alt="Turichips logo"></p>
+<p align="center"><img src="brand/logo-512.png" width="160" alt="TuriChips logo"></p>
 
-# Turichips
+# TuriChips
 
 A one-person company staffed by AI agents.
 

@@ -21,7 +21,7 @@ def tagged(text: str) -> list[str]:
 async def pick(channel: str, text: str, context: str = "") -> list[str]:
     roster = "\n".join(f"- {a}: {v['name']}, {v['role']}" for a, v in AGENTS.items())
     prompt = (
-        f"You route messages in the #{channel} channel of Turichips, a chip design lab staffed by AI agents.\n"
+        f"You route messages in the #{channel} channel of TuriChips, a chip design lab staffed by AI agents.\n"
         f"Team:\n{roster}\n\n"
         + (f"Thread so far:\n{context}\n\n" if context else "")
         + f"The manager, Sai, wrote:\n{text}\n\n"

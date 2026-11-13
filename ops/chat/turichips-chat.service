@@ -1,5 +1,5 @@
 [Unit]
-Description=Turichips chat
+Description=TuriChips chat
 After=network-online.target
 Wants=network-online.target
 

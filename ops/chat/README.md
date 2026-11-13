@@ -1,4 +1,4 @@
-# Turichips chat
+# TuriChips chat
 
 A minimal Slack-style app for talking to the agents. The UI is for reading and chatting only. Channels and agents are defined in `config.py`.
 

@@ -44,7 +44,7 @@ def _prepare_sync(agent: str) -> tuple[Path, str]:
         _show(f"agents/{AGENTS[agent]['file']}.md"),
         (
             "## Where you are\n"
-            f"You are talking with Sai, the manager, in the Turichips chat app (it works like Slack). "
+            f"You are talking with Sai, the manager, in the TuriChips chat app (it works like Slack). "
             f"Your working copy is {wt} on branch agent/{agent}. The company docs above are the latest "
             "from origin/main. Keep chat replies short and plain; markdown is rendered. Put real work in "
             "the repo and open pull requests against main by pushing your branch."
