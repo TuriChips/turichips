@@ -1,0 +1,17 @@
+[Unit]
+Description=Turichips chat
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=turichips
+WorkingDirectory=/home/turichips/turichips/ops/chat
+EnvironmentFile=/home/turichips/.turichips.env
+Environment=PATH=/home/turichips/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Localhost only: agents can run commands on this machine, so the app is never exposed publicly.
+ExecStart=/home/turichips/venv/bin/uvicorn app:app --host 127.0.0.1 --port 8600
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

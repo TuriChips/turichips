@@ -5,6 +5,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from config import AGENTS
+
 REPO = Path(os.environ.get("TURICHIPS_REPO", Path.home() / "turichips"))
 WORK = Path(os.environ.get("TURICHIPS_WORK", Path.home() / "work"))
 CLAUDE = os.environ.get("CLAUDE_BIN", str(Path.home() / ".local/bin/claude"))
@@ -18,58 +20,53 @@ def _git(*args, cwd=REPO):
 
 
 def _show(path: str) -> str:
-    """Read a file as it is on origin/main, so every agent sees the latest company docs."""
+    """A file as it is on origin/main, so every agent sees the latest company docs."""
     r = _git("show", f"origin/main:{path}")
     return r.stdout if r.returncode == 0 else ""
 
 
-async def prepare(name: str) -> tuple[Path, str]:
-    """Fetch, make sure the agent has a worktree, and build its system prompt."""
+async def prepare(agent: str) -> tuple[Path, str]:
     async with _git_lock:
         _git("fetch", "-q", "origin")
-        wt = WORK / name
+        wt = WORK / agent
         if not wt.exists():
             WORK.mkdir(parents=True, exist_ok=True)
-            branch = f"agent/{name}"
+            branch = f"agent/{agent}"
             if _git("rev-parse", "--verify", branch).returncode != 0:
                 _git("branch", branch, "origin/main")
             _git("worktree", "add", "-q", str(wt), branch)
-        from agents import AGENTS
         prompt = "\n\n---\n\n".join([
             _show("COMPANY.md"),
             _show("agents/_rules.md"),
-            _show(f"agents/{AGENTS[name]}.md"),
+            _show(f"agents/{AGENTS[agent]['file']}.md"),
             (
                 "## Where you are\n"
-                f"You are talking with Sai, the manager, on Discord. Your working copy is {wt} "
-                f"on branch agent/{name}. Company docs above are the latest from origin/main. "
-                "Keep Discord replies short and plain. Put real work in the repo and open pull requests "
-                "against main with `gh` or by pushing your branch."
+                f"You are talking with Sai, the manager, in the Turichips chat app (it works like Slack). "
+                f"Your working copy is {wt} on branch agent/{agent}. The company docs above are the latest "
+                "from origin/main. Keep chat replies short and plain; markdown is rendered. Put real work in "
+                "the repo and open pull requests against main by pushing your branch."
             ),
         ])
     return wt, prompt
 
 
-async def run_turn(name: str, message: str, session_id: str, resume: bool) -> str:
-    wt, system_prompt = await prepare(name)
-    cmd = [
-        CLAUDE, "-p", message,
-        "--output-format", "json",
-        "--append-system-prompt", system_prompt,
-        "--dangerously-skip-permissions",  # runs as the isolated `turichips` user
-    ]
+async def run_turn(agent: str, message: str, session_id: str, resume: bool) -> tuple[str, bool]:
+    """Returns (reply text, ok). The session only counts as started when ok is True."""
+    wt, system_prompt = await prepare(agent)
+    cmd = [CLAUDE, "-p", message, "--output-format", "json",
+           "--append-system-prompt", system_prompt,
+           "--dangerously-skip-permissions"]  # runs as the isolated `turichips` user
     cmd += ["--resume", session_id] if resume else ["--session-id", session_id]
     proc = await asyncio.create_subprocess_exec(
-        *cmd, cwd=wt, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-    )
+        *cmd, cwd=wt, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     try:
         out, err = await asyncio.wait_for(proc.communicate(), timeout=TIMEOUT)
     except asyncio.TimeoutError:
         proc.kill()
-        return f"I ran out of time ({TIMEOUT // 60} min) on this one. Reply here to let me continue."
+        return f"I ran out of time ({TIMEOUT // 60} min) on this one. Reply to let me continue.", resume
     try:
         data = json.loads(out)
-        return data.get("result") or "(no reply)"
+        return data.get("result") or "(no reply)", not data.get("is_error", False)
     except json.JSONDecodeError:
         tail = (err or out).decode(errors="replace")[-800:]
-        return f"Something broke while I was working:\n```\n{tail}\n```"
+        return f"Something broke while I was working:\n```\n{tail}\n```", False
