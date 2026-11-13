@@ -61,7 +61,9 @@
 
   // ---------- State ----------
   let canvas, ctx, low, lctx, meta, getWorking, onPick, raf = null, last = 0, t = 0;
-  let people = {}, logo = null, hover = null, view = { s: 1, ox: 0, oy: 0 };
+  let people = {}, logo = null, hover = null, view = { s: 1, regions: [] };
+  // Tall screens (phones) split the scene: desks on top, lounge below. SPLIT is the scene x where the lounge starts.
+  const SPLIT = 258;
 
   function makePeople() {
     people = {};
@@ -252,12 +254,12 @@
 
   // ---------- Drawing (full-res overlay: names and bubbles) ----------
   function overlay(working) {
-    const { s, ox, oy } = view;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
     for (const p of Object.values(people)) {
       const a = meta.agents[p.id];
-      const cx = ox + (p.x + 5) * s, top = oy + (p.y - 3) * s;
+      const g = regionOf(p.x + 5), s = g.s;
+      const cx = g.dx + (p.x + 5 - g.sx) * s, top = g.dy + (p.y - 3) * s;
       ctx.font = `700 ${Math.max(10, Math.round(s * 3.6))}px Lato, sans-serif`;
       const w = ctx.measureText(a.name).width + 10, hgt = Math.max(14, s * 5);
       ctx.fillStyle = hover === p.id ? a.color : "rgba(20,16,32,.78)";
@@ -297,9 +299,21 @@
     canvas.width = Math.floor(box.width * d); canvas.height = Math.floor(box.height * d);
     canvas.style.width = `${box.width}px`; canvas.style.height = `${box.height}px`;
     ctx.setTransform(d, 0, 0, d, 0, 0);
-    const s = Math.min(box.width / W, box.height / H) * 0.98;
-    view = { s, ox: Math.floor((box.width - W * s) / 2), oy: Math.floor((box.height - H * s) / 2) };
+    const fit = (sx, sw, top, bw, bh, label) => {
+      const s = Math.min(bw / sw, bh / H) * 0.98;
+      return { sx, sw, s, label, dx: Math.floor((bw - sw * s) / 2), dy: Math.floor(top + (bh - H * s) / 2), top, bh };
+    };
+    if (box.height > box.width) {     // portrait: two stacked halves
+      const half = box.height / 2;
+      view = { split: true, regions: [fit(0, SPLIT, 0, box.width, half, "Desks"), fit(SPLIT, W - SPLIT, half, box.width, half, "Lounge")] };
+    } else {
+      view = { split: false, regions: [fit(0, W, 0, box.width, box.height)] };
+    }
+    view.s = Math.min(...view.regions.map((g) => g.s));
   }
+
+  // Which drawn region shows scene x (people in the corridor switch halves as they cross SPLIT).
+  const regionOf = (x) => view.regions.find((g) => x >= g.sx && x < g.sx + g.sw) || view.regions[view.regions.length - 1];
 
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000 || 0); last = now; t += dt;
@@ -310,14 +324,26 @@
     const box = canvas.parentElement.getBoundingClientRect();
     ctx.clearRect(0, 0, box.width, box.height);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(low, view.ox, view.oy, W * view.s, H * view.s);
+    for (const g of view.regions) ctx.drawImage(low, g.sx, 0, g.sw, H, g.dx, g.dy, g.sw * g.s, H * g.s);
+    if (view.split) {
+      const mid = view.regions[1].top;
+      ctx.fillStyle = "#2d2245"; ctx.fillRect(0, mid - 2, box.width, 4);
+      ctx.font = "700 12px Lato, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "top";
+      for (const g of view.regions) {
+        const w = ctx.measureText(g.label).width + 12;
+        ctx.fillStyle = "rgba(20,16,32,.78)"; roundRect(8, g.top + 8, w, 20, 4); ctx.fill();
+        ctx.fillStyle = "#fff"; ctx.fillText(g.label, 14, g.top + 12);
+      }
+    }
     overlay(working);
     raf = requestAnimationFrame(frame);
   }
 
   function pick(ev) {
-    const r = canvas.getBoundingClientRect();
-    const x = (ev.clientX - r.left - view.ox) / view.s, y = (ev.clientY - r.top - view.oy) / view.s;
+    const r = canvas.getBoundingClientRect(), cy = ev.clientY - r.top;
+    const g = view.regions.find((k) => cy >= k.top && cy < k.top + k.bh) || view.regions[0];
+    const x = g.sx + (ev.clientX - r.left - g.dx) / g.s, y = (cy - g.dy) / g.s;
+    if (x < g.sx - 4 || x > g.sx + g.sw + 4) return null;
     let best = null;
     for (const p of Object.values(people)) if (x >= p.x - 2 && x <= p.x + 12 && y >= p.y - 8 && y <= p.y + 17) best = p.id;
     return best;

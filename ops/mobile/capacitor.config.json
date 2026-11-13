@@ -1,0 +1,10 @@
+{
+  "appId": "in.turilabs.turichips",
+  "appName": "TuriChips",
+  "webDir": "www",
+  "server": {
+    "url": "https://turichips.tail3b50cb.ts.net",
+    "errorPath": "offline.html"
+  },
+  "android": { "backgroundColor": "#1a1d21" }
+}

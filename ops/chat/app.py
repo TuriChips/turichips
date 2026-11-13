@@ -9,9 +9,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import db
-from config import AGENTS, CHANNELS, DM_IDLE_RESET_SECONDS, MANAGER, WORKSPACE
+from config import AGENTS, CHANNELS, DM_IDLE_RESET_SECONDS, MANAGER, SYSTEM, WORKSPACE
 from router import pick, tagged
 from runner import run_turn
+import shift
 import os
 
 HERE = Path(__file__).parent
@@ -28,6 +29,11 @@ routing: dict[int, bool] = {}  # messages still deciding who answers
 CHANNEL_IDS = {c["id"] for c in CHANNELS} | {f"dm-{a}" for a in AGENTS}
 
 
+@app.on_event("startup")
+async def start_shifts():
+    shift.start(working, agent_locks, slots)
+
+
 class NewMessage(BaseModel):
     channel: str
     text: str
@@ -41,7 +47,7 @@ def index():
 
 @app.get("/api/meta")
 def meta():
-    return {"workspace": WORKSPACE, "me": MANAGER, "channels": CHANNELS,
+    return {"workspace": WORKSPACE, "me": MANAGER, "system": SYSTEM, "channels": CHANNELS,
             "agents": AGENTS, "last_id": db.last_id()}
 
 
@@ -75,6 +81,12 @@ async def post(m: NewMessage):
         if not parent or parent["channel"] != m.channel or parent["parent_id"] is not None:
             raise HTTPException(400)
     msg = db.add(m.channel, MANAGER["id"], text, m.parent_id)
+    reply = shift.command(text)
+    if reply is not None:                # /pause, /resume, /status: answered by the scheduler, no agent runs
+        db.add(m.channel, SYSTEM["id"], reply, m.parent_id)
+        return msg
+    if m.channel == "work":              # the shift log is for reports; Sai's messages there don't wake anyone
+        return msg
     asyncio.create_task(dispatch(m.channel, text, m.parent_id, msg["id"]))
     return msg
 

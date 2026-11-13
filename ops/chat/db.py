@@ -22,6 +22,7 @@ def init():
             author text not null, text text not null, ts real not null);
         create index if not exists idx_msg_channel on messages(channel, parent_id);
         create index if not exists idx_msg_parent on messages(parent_id);
+        create table if not exists kv(key text primary key, value text not null);
         create table if not exists sessions(
             key text primary key, session_id text not null, last_ts real not null);
         """)
@@ -109,3 +110,15 @@ def channel_context(channel, before_id, after_id=0, limit=30):
     return [dict(r) for r in reversed(rows)]
 
 
+
+
+def kv_get(key, default=None):
+    with conn() as c:
+        r = c.execute("select value from kv where key=?", (key,)).fetchone()
+    return r[0] if r else default
+
+
+def kv_set(key, value):
+    with conn() as c:
+        c.execute("insert into kv(key,value) values(?,?) on conflict(key) do update set value=excluded.value",
+                  (key, value))
