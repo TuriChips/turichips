@@ -1,6 +1,5 @@
 """Turichips chat: a minimal Slack-like app for talking to the agents."""
 import asyncio
-import re
 import uuid
 from pathlib import Path
 
@@ -11,6 +10,7 @@ from pydantic import BaseModel
 
 import db
 from config import AGENTS, CHANNELS, DM_IDLE_RESET_SECONDS, MANAGER, WORKSPACE
+from router import pick, tagged
 from runner import run_turn
 import os
 
@@ -24,6 +24,7 @@ db.init()
 slots = asyncio.Semaphore(MAX_PARALLEL)
 agent_locks = {a: asyncio.Lock() for a in AGENTS}
 working: dict[str, dict] = {}  # agent -> {"channel", "parent_id"}
+routing: dict[int, bool] = {}  # messages still deciding who answers
 CHANNEL_IDS = {c["id"] for c in CHANNELS} | {f"dm-{a}" for a in AGENTS}
 
 
@@ -61,7 +62,7 @@ def thread(mid: int):
 
 @app.get("/api/updates")
 def updates(after: int = 0):
-    return {"messages": db.since(after), "working": working}
+    return {"messages": db.since(after), "working": working, "routing": list(routing)}
 
 
 @app.post("/api/messages")
@@ -74,30 +75,43 @@ async def post(m: NewMessage):
         if not parent or parent["channel"] != m.channel or parent["parent_id"] is not None:
             raise HTTPException(400)
     msg = db.add(m.channel, MANAGER["id"], text, m.parent_id)
-    for agent, reply_parent, key, idle in route(m.channel, text, m.parent_id, msg["id"]):
-        asyncio.create_task(respond(agent, m.channel, reply_parent, key, idle, text))
+    asyncio.create_task(dispatch(m.channel, text, m.parent_id, msg["id"]))
     return msg
 
 
-def route(channel, text, parent_id, msg_id):
+async def dispatch(channel, text, parent_id, msg_id):
+    for agent, reply_parent, key, idle in await route(channel, text, parent_id, msg_id):
+        asyncio.create_task(respond(agent, channel, reply_parent, key, idle, text))
+
+
+async def route(channel, text, parent_id, msg_id):
     """Decide which agents answer, where their reply goes, and which session continues."""
-    mentioned = [a for a in AGENTS if re.search(rf"@{a}\b", text, re.I)]
     if channel.startswith("dm-"):
         agent = channel[3:]
         if parent_id is None:
             return [(agent, None, f"dm:{agent}", DM_IDLE_RESET_SECONDS)]
         return [(agent, parent_id, f"thread:{parent_id}:{agent}", None)]
+    agents = tagged(text)
     if parent_id is None:
-        return [(a, msg_id, f"thread:{msg_id}:{a}", None) for a in mentioned]
-    agents = mentioned or [x for x in [db.last_agent_in_thread(parent_id, list(AGENTS))] if x]
+        if not agents:
+            routing[msg_id] = True
+            try:
+                agents = await pick(channel, text)
+            finally:
+                routing.pop(msg_id, None)
+        return [(a, msg_id, f"thread:{msg_id}:{a}", None) for a in agents]
+    if not agents:
+        last = db.last_agent_in_thread(parent_id, list(AGENTS))
+        agents = [last] if last else await pick(channel, text, transcript(parent_id, include_last=True))
     return [(a, parent_id, f"thread:{parent_id}:{a}", None) for a in agents]
 
 
-def transcript(parent_id):
+def transcript(parent_id, include_last=False):
     parent = db.get(parent_id)
     lines = [parent] + db.thread(parent_id)
+    lines = lines if include_last else lines[:-1]
     who = lambda a: AGENTS[a]["name"] if a in AGENTS else MANAGER["name"]
-    return "\n".join(f"{who(x['author'])}: {x['text']}" for x in lines[:-1])
+    return "\n".join(f"{who(x['author'])}: {x['text']}" for x in lines)
 
 
 async def respond(agent, channel, reply_parent, key, idle, text):

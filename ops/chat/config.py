@@ -3,9 +3,11 @@
 WORKSPACE = "Turichips"
 MANAGER = {"id": "sai", "name": "Sai", "role": "Manager", "color": "#1d9bd1"}
 
-# Shared channels. Agents answer here only when @mentioned, and always in a thread.
+# Shared channels. Agents always answer in a thread under your message.
+# @name pulls in one agent, @all (or @everyone/@channel/@here/@team) pulls in everyone,
+# and with no tag a fast model picks who should answer (ROUTER_DEFAULT if unsure).
 CHANNELS = [
-    {"id": "general", "topic": "Company-wide. @mention an agent to pull them in."},
+    {"id": "general", "topic": "Company-wide. Tag @name or @all, or just talk and the right people answer."},
     {"id": "standup", "topic": "Standups: Passed / In progress / Blocked."},
     {"id": "reviews", "topic": "Weekly reviews: what shipped, what slipped, what to do better."},
 ]
@@ -21,6 +23,8 @@ AGENTS = {
     "petra": {"name": "Petra", "file": "physical-design", "role": "Physical Design",                   "color": "#d97706"},
     "juno":  {"name": "Juno",  "file": "software-docs",   "role": "Software and Docs",                 "color": "#db2777"},
 }
+
+ROUTER_DEFAULT = "vera"
 
 # A DM conversation starts a fresh Claude session after this much silence.
 DM_IDLE_RESET_SECONDS = 4 * 3600

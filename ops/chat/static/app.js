@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const S = { meta: null, current: null, cache: {}, threadId: null, thread: [], lastId: 0, unread: {}, working: {} };
+const S = { meta: null, current: null, cache: {}, threadId: null, thread: [], lastId: 0, unread: {}, working: {}, routing: [] };
 
 const api = async (path, opts) => {
   const r = await fetch(path, opts);
@@ -90,7 +90,8 @@ function renderThread() {
 function renderWorking() {
   const names = (pred) => Object.entries(S.working).filter(([, w]) => pred(w)).map(([a]) => S.meta.agents[a].name);
   const line = (n) => n.length ? `${n.join(", ")} ${n.length === 1 ? "is" : "are"} working…` : "";
-  $("working").textContent = line(names((w) => w.channel === S.current));
+  const deciding = (S.cache[S.current] || []).some((m) => S.routing.includes(m.id));
+  $("working").textContent = line(names((w) => w.channel === S.current)) || (deciding ? "Finding who should answer…" : "");
   $("thread-working").textContent = S.threadId ? line(names((w) => w.parent_id === S.threadId)) : "";
 }
 
@@ -155,8 +156,9 @@ async function poll() {
   try {
     const u = await api(`/api/updates?after=${S.lastId}`);
     u.messages.forEach((m) => { ingest(m); S.lastId = Math.max(S.lastId, m.id); });
-    const changed = u.messages.length || JSON.stringify(u.working) !== JSON.stringify(S.working);
+    const changed = u.messages.length || JSON.stringify([u.working, u.routing]) !== JSON.stringify([S.working, S.routing]);
     S.working = u.working;
+    S.routing = u.routing || [];
     if (changed) { renderSidebar(); renderMain(); renderThread(); }
   } catch (e) { console.warn(e); }
   polling = false;

@@ -25,29 +25,36 @@ def _show(path: str) -> str:
     return r.stdout if r.returncode == 0 else ""
 
 
+def _prepare_sync(agent: str) -> tuple[Path, str]:
+    """Blocking git work. Always called in a worker thread so the server never freezes."""
+    _git("fetch", "-q", "origin")
+    wt = WORK / agent
+    if not wt.exists():
+        WORK.mkdir(parents=True, exist_ok=True)
+        branch = f"agent/{agent}"
+        if _git("rev-parse", "--verify", branch).returncode != 0:
+            _git("branch", branch, "origin/main")
+        r = _git("worktree", "add", "-q", str(wt), branch)
+        if r.returncode != 0:
+            raise RuntimeError(f"could not create worktree for {agent}: {r.stderr.strip()}")
+    prompt = "\n\n---\n\n".join([
+        _show("COMPANY.md"),
+        _show("agents/_rules.md"),
+        _show(f"agents/{AGENTS[agent]['file']}.md"),
+        (
+            "## Where you are\n"
+            f"You are talking with Sai, the manager, in the Turichips chat app (it works like Slack). "
+            f"Your working copy is {wt} on branch agent/{agent}. The company docs above are the latest "
+            "from origin/main. Keep chat replies short and plain; markdown is rendered. Put real work in "
+            "the repo and open pull requests against main by pushing your branch."
+        ),
+    ])
+    return wt, prompt
+
+
 async def prepare(agent: str) -> tuple[Path, str]:
     async with _git_lock:
-        _git("fetch", "-q", "origin")
-        wt = WORK / agent
-        if not wt.exists():
-            WORK.mkdir(parents=True, exist_ok=True)
-            branch = f"agent/{agent}"
-            if _git("rev-parse", "--verify", branch).returncode != 0:
-                _git("branch", branch, "origin/main")
-            _git("worktree", "add", "-q", str(wt), branch)
-        prompt = "\n\n---\n\n".join([
-            _show("COMPANY.md"),
-            _show("agents/_rules.md"),
-            _show(f"agents/{AGENTS[agent]['file']}.md"),
-            (
-                "## Where you are\n"
-                f"You are talking with Sai, the manager, in the Turichips chat app (it works like Slack). "
-                f"Your working copy is {wt} on branch agent/{agent}. The company docs above are the latest "
-                "from origin/main. Keep chat replies short and plain; markdown is rendered. Put real work in "
-                "the repo and open pull requests against main by pushing your branch."
-            ),
-        ])
-    return wt, prompt
+        return await asyncio.to_thread(_prepare_sync, agent)
 
 
 async def run_turn(agent: str, message: str, session_id: str, resume: bool) -> tuple[str, bool]:
@@ -68,5 +75,5 @@ async def run_turn(agent: str, message: str, session_id: str, resume: bool) -> t
         data = json.loads(out)
         return data.get("result") or "(no reply)", not data.get("is_error", False)
     except json.JSONDecodeError:
-        tail = (err or out).decode(errors="replace")[-800:]
-        return f"Something broke while I was working:\n```\n{tail}\n```", False
+        tail = (err or out).decode(errors="replace")[-800:] or "(no output)"
+        return f"Something broke while I was working (exit code {proc.returncode}):\n```\n{tail}\n```", False
