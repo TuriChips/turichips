@@ -6,7 +6,7 @@ Sources, to be checked in §10:
 - Intel, *MCS-4 Micro Computer Set Users Manual*, Rev. 4, February 1973 (instruction set, timing, 4001/4002).
 - Intel, *4004 Single Chip 4-Bit P-Channel Microprocessor* datasheet (pins, timing diagram).
 
-Anything below marked **[check]** comes from memory of those documents and must be confirmed against the page before this spec is normative.
+§10 records, item by item, where each fact was checked. Every item is now checked except the Busicom license (§9).
 
 ## 1. Scope
 - The **4004 CPU**, cycle-accurate at its 16 pins: every clock phase, the value on `d[3:0]`, `sync`, `cm_rom` and `cm_ram[3:0]` is specified (§4).
@@ -16,7 +16,7 @@ Anything below marked **[check]** comes from memory of those documents and must 
 - Clock: one rising-edge clock `clk` stands in for the two-phase φ1/φ2. One `clk` period = one of the 8 clock periods of an instruction cycle (§4). Real timing (8 clock periods per cycle, 10.8 µs per instruction cycle, Users Manual p.6 and p.28) is noted, not modelled.
 
 ## 2. Pins (top module `i4004`)
-| Signal | Dir | Width | Meaning | Real pin **[check]** |
+| Signal | Dir | Width | Meaning | Real pin (§10) |
 |--------|-----|-------|---------|----------|
 | `clk` | in | 1 | Model clock, one per clock period | φ1 6, φ2 7 |
 | `reset` | in | 1 | Synchronous reset, active high (§5) | 9 |
@@ -145,7 +145,7 @@ Structure confirmed (manual p.36: three accumulator bits, 8 codes, 000 = CM-RAM0
 
 ## 7. System: 4001 and 4002 (reduced detail)
 - `i4001` ROM: 256 × 8 contents from a `$readmemh` file, chip number 0–15 (strap), 4-bit I/O port configured as all-output or all-input per chip (metal-mask option, here a parameter). It responds to A1–A3 with its chip number on A3 + `cm_rom`, and drives OPR/OPA at M1/M2. SRC's high nibble at X2 with `cm_rom` selects the chip for WRR/RDR.
-- `i4002` RAM: 4 registers × 16 data characters + 4 status characters, 4 bits each; 4-bit output port. Chip select = `src_addr[7:6]`, register = `src_addr[5:4]` (manual p.15), with the chip number within a bank set by the 4002-1/-2 variant and its P0 pin **[check: strap mapping]**, character = `src_addr[3:0]`, bank = which `cm_ram` line it is on.
+- `i4002` RAM: 4 registers × 16 data characters + 4 status characters, 4 bits each; 4-bit output port. Chip select = `src_addr[7:6]`, register = `src_addr[5:4]` (manual p.15), with the chip number set by a parameter `CHIP[1:0]` that the 4002 compares with `src_addr[7:6]`. On real chips it comes from the 4002-1/-2 metal option plus the P0 pin (manual p.21). That mapping is not modelled, because the scan's table is illegible and the behaviour at the bus is the same, character = `src_addr[3:0]`, bank = which `cm_ram` line it is on.
 - `mcs4_system`: one 4004, up to 16 4001s, up to 16 4002s (4 per bank × 4 banks). The default build for tests is 1 × 4001 per program page used, 4 × 4002 on bank 0.
 
 ## 8. Behaviours to test
@@ -162,7 +162,7 @@ Structure confirmed (manual p.36: three accumulator bits, 8 codes, 000 = CM-RAM0
 | C9 | Random programs: the RTL and Rook's reference model agree on every pin, every clock, for N random programs (N set by Rook, at least 10,000 programs × 1,000 cycles) |
 
 ## 9. Acceptance tests (software not written by this team)
-1. **Busicom 141-PF calculator firmware**, the program the 4004 was built for, running on `mcs4_system` with a model of the printer/keyboard I/O: key in sums and check the printed results. Source: the reconstructed and commented listing published by the 4004 restoration project (Tim McNerney et al.). **License must be confirmed before use. If it doesn't allow it, drop to 2 and 3 and say so in the release.**
+1. **Busicom 141-PF calculator firmware**, the program the 4004 was built for, running on `mcs4_system` with a model of the printer/keyboard I/O: key in sums and check the printed results. Source: the reconstructed and commented listing published by the 4004 restoration project (Tim McNerney et al.). Checked 2026-11-14: 4004.com says works on the site are under **CC BY-NC-SA 3.0** "unless noted". The listing itself doesn't carry its own terms on the page we found. Because of rule 9 (no copied code in the repo), the ROM image is **never committed**: the test downloads it at run time from the project's site, and the release credits the Silvermans and Lajos Kintli. **Open for Sai at sign-off:** whether non-commercial-licensed material may be used in our tests at all. If not, drop this test and rely on 2 and 3, and say so in the release.
 2. **Example programs from the MCS-4 Users Manual** (e.g. multi-digit decimal addition, subtraction), typed in from the manual. Expected results come from the manual's text.
 3. **Instruction-level comparison against an independent, existing 4004 emulator** (to be chosen by Rook; it must not be written by this team), run on the same random programs as C9.
 
@@ -171,7 +171,7 @@ Source read: Intel *MCS-4 Micro Computer Set Users Manual* (Feb 1973 scan, OCR t
 
 - [x] Negative logic in the original (p.6), so our positive-logic choice is a deliberate deviation (§1)
 - [x] 8 clock periods per instruction cycle, 10.8 µs (p.6, p.28)
-- [ ] §2 pin numbers: SYNC = 8 and TEST = 10 confirmed; the rest are in a figure (page image)
+- [x] §2 pin numbers. CM-RAM0..3 = 16, 15, 14, 13 (decoder figure, p.36), SYNC = 8 (p.86), TEST = 10 (p.32). The rest follows from the pad order around the die photo (p.ii: D0, D1, D2, D3, VSS, φ1, φ2, SYNC, RESET, TEST, CM-ROM, VDD, CM-RAM3..0), anchored by those pins: D0–D3 = 1–4, VSS = 5, φ1 = 6, φ2 = 7, RESET = 9, CM-ROM = 11, VDD = 12. The 4002's own pinout is drawn on p.21 and matches the same convention
 - [x] §4 bus contents: A1–A3 address, M1/M2 OPR/OPA, X2/X3 SRC address (p.6, p.15, p.30)
 - [x] §4 CM lines: CM-ROM + CM-RAMi at A3 (meaningless to RAMs), at M2 for I/O-group, at X2 for SRC (p.15). Fig. 4's exact edges: page image
 - [x] §5 reset: static FFs cleared, index registers need ≥ 64 clock periods (p.10)
@@ -180,7 +180,8 @@ Source read: Intel *MCS-4 Micro Computer Set Users Manual* (Feb 1973 scan, OCR t
 - [x] JCN condition equation and bit order (p.32)
 - [x] DAC, DAA, TCS, TCC, KBP, RAL, RAR, IAC (p.35–36)
 - [x] SUB/SBM `cy` sense. The manual page is unreadable in OCR; confirmed instead from the pyntel4004 docs, which quote the Assembly Language Programming Manual: "complementing each bit of R and adding … plus the complement of the carry bit"; a borrow is indicated by `cy` = 1 at the start. **Secondary source. Upgrade to primary when someone reads the page image.**
-- [ ] §6.5 DCL row-by-row mapping (page image, p.36)
+- [x] §6.5 DCL: all 8 rows match the truth table on p.36 (page image read)
+- [x] KBP: all 16 rows match the table on p.36 (page image read)
 - [x] §7 4002: X2 nibble = 2 bits chip + 2 bits register, X3 = character (p.15); ROM uses the X2 nibble only and ignores X3 (p.15)
-- [ ] §7 4002-1/-2 strap mapping (page image)
-- [ ] Busicom 141-PF listing license (§9)
+- [x] §7 4002 chip number: modelled as a parameter. The strap table on p.21 is illegible in this scan (empty chip-number column), so it is deliberately not specified
+- [ ] Busicom 141-PF license: CC BY-NC-SA 3.0 (site-wide, 4004.com). Needs Sai's decision (§9)
