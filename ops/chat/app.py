@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -51,7 +51,12 @@ class NewMessage(BaseModel):
 
 @app.get("/")
 def index():
-    return FileResponse(HERE / "static" / "index.html")
+    """index.html with each script/stylesheet stamped by its file time, so no client can run an old copy."""
+    html = (HERE / "static" / "index.html").read_text()
+    for name in ("style.css", "office.js", "app.js"):
+        stamp = int((HERE / "static" / name).stat().st_mtime)
+        html = html.replace(f'/static/{name}"', f'/static/{name}?v={stamp}"')
+    return HTMLResponse(html)
 
 
 @app.get("/api/meta")
