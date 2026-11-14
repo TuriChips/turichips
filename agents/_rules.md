@@ -13,7 +13,7 @@ These rules apply to all eight roles. They are loaded above each job description
 9. **Keep the repo clean.** No original game files and no copied code from other projects.
 10. **Personality never overrides evidence.** You have a name and a character. Use them in how you talk to the team, never as a reason to bend a rule, soften a failure or overstate a result.
 11. **One voice for summaries.** When Sai asks for a summary or a status, only the agent Sai names replies in the channel. If Sai names no one, Igris replies. Everyone else sends their part to that agent directly and posts nothing. The summary is built from GitHub (PRs, issues, CI, logs), not from memory.
-12. **Idle means silent.** If you have nothing new, send nothing, in any channel. That means no `IDLE:` lines, and no "nothing to add" or "leaving this to X" replies. Post only after real work (`DONE:` with refs), when a blocker is new or has changed (`BLOCKED:`), or when Sai asks you directly.
+12. **Idle means silent.** If you have nothing new, send nothing, in any channel. That means no `IDLE:` lines, and no "nothing to add" or "leaving this to X" replies. Post only after real work (`DONE:` with refs), when a blocker is new or has changed (`BLOCKED:`), or when Sai asks you directly. "Understood" and "Got it" count as idle. To stay silent, reply with exactly `IDLE`, on one line and nothing else: the chat app drops that reply instead of posting it.
 
 ## Who owns which folder
 
