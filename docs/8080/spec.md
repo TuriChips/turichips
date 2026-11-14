@@ -29,7 +29,7 @@ The real 40-pin package (pinout in §10) has a bidirectional 8-bit data bus. As 
 | `sync` | out | 1 | SYNC: high in T1 of every machine cycle; the status byte is on D7–D0 |
 | `dbin` | out | 1 | DBIN: CPU is reading the data bus (T2, T3 of read cycles) |
 | `wr_n` | out | 1 | WR (active low): data on the bus is valid for memory or I/O write |
-| `ready` | in | 1 | READY: while low after an address is sent, the CPU stays in WAIT (TW) states (p.5-14). Exact sampling state [check] |
+| `ready` | in | 1 | READY: while low after an address is sent, the CPU stays in WAIT (TW) states (p.5-14). Sampled in T2 and each TW (Table 2-2, p.2-10) |
 | `wait_o` | out | 1 | WAIT: CPU is in a wait state |
 | `hold` | in | 1 | HOLD: request to float the buses. Recognised only in HALT, or in T2/TW with READY active (p.5-14) |
 | `hlda` | out | 1 | HLDA: hold acknowledged. Starts at T3 of a memory-read or input cycle, or the clock period after T3 of a write or output cycle (p.5-14) |
@@ -38,17 +38,17 @@ The real 40-pin package (pinout in §10) has a bidirectional 8-bit data bus. As 
 
 **Status byte** (on `d_out` while `sync` = 1, confirmed §10): D0 INTA, D1 WO (active low), D2 STACK, D3 HLTA, D4 OUT, D5 M1, D6 INP, D7 MEMR.
 
-## 3. Programmer's model [check]
+## 3. Programmer's model
 | Name | Width | Reset value | Notes |
 |------|-------|-------------|-------|
 | `A` | 8 | not reset (*Decision*: tests must not depend on it; the RTL may clear it) | Accumulator |
 | `B C D E H L` | 8 each | not reset (same *Decision*) | Pairs BC, DE, HL (`H`, `B`, `D` high) |
 | `SP` | 16 | not reset (same *Decision*) | Stack pointer |
 | `PC` | 16 | 0 | Program counter |
-| `F` | 8 | not reset | Flags `S Z 0 AC 0 P 1 CY` from bit 7 to bit 0, as pushed by PUSH PSW (bits 5 and 3 = 0, bit 1 = 1) |
+| `F` | 8 | not reset | Flags `S Z 0 AC 0 P 1 CY` from bit 7 to bit 0, as pushed by PUSH PSW: bit 0 CY, 1 = 1, 2 P, 3 = 0, 4 AC, 5 = 0, 6 Z, 7 S (User's Manual p.4-13). POP PSW loads only CY, P, AC, Z, S from those bits |
 | `INTE` | 1 | 0 | Interrupt enable |
 
-Memory: 64 KiB, byte addressed. I/O: 256 input and 256 output ports, the port number is put on both halves of the address bus [check].
+Memory: 64 KiB, byte addressed. I/O: 256 input and 256 output ports, the port number is put on both halves of the address bus (ALP p.1-15).
 
 ## 4. Machine cycle timing (normative once checked)
 To be written, at the same level as the 4004's §4: per machine-cycle type (instruction fetch, memory read, memory write, stack read, stack write, input, output, interrupt acknowledge, halt acknowledge, interrupt acknowledge while halted), and per T state, the values of `a`, `a_oe`, `d_out`, `d_oe`, `sync`, `dbin`, `wr_n`, `wait_o`, `hlda`. Instructions take 4, 5, 7, 10, 11, 13, 16, 17 or 18 states. From the User's Manual instruction summary: INX/DCX 5, DAD 10, SHLD/LHLD 16, CALL 17, Ccc 11/17, Rcc 5/11, XTHL 18, DAA 4 (confirmed §10). The full per-opcode table gets transcribed from that summary. READY sampled in T2 [check], HOLD sampled in T2 [check], INT sampled at the end of the last state of each instruction [check].
@@ -132,6 +132,7 @@ Source read: Intel *8080 Microcomputer Systems User's Manual*, September 1975 (9
 - [x] Reset also resets INTE and HLDA; "flags, accumulator, stack pointer, and registers are not cleared" (p.5-14).
 - [ ] Reset effect on the instruction register.
 - [x] Pin functions (8080A functional pin definition, p.5-14): WR active low; READY low → WAIT; HOLD recognised in HALT or in T2/TW with READY active; HLDA from T3 (read/input) or the period after T3 (write/output); INTE reset by RESET and at T1 of M1 when an interrupt is accepted; INT recognised at the end of an instruction or while halted, not in HOLD or with INTE = 0.
+- [x] Flag byte for PUSH/POP PSW: bit 0 CY, 1 = 1, 2 P, 3 = 0, 4 AC, 5 = 0, 6 Z, 7 S (p.4-13).
 - [x] Pinout (p.5-14 figure; confirmed on the rendered page image, including pins 31 = A5 and 34 = A8): 1 A10, 2 GND, 3 D4, 4 D5, 5 D6, 6 D7, 7 D3, 8 D2, 9 D1, 10 D0, 11 −5V, 12 RESET, 13 HOLD, 14 INT, 15 φ2, 16 INTE, 17 DBIN, 18 WR, 19 SYNC, 20 +5V, 21 HLDA, 22 φ1, 23 READY, 24 WAIT, 25 A0, 26 A1, 27 A2, 28 +12V, 29 A3, 30 A4, 31 A5, 32 A6, 33 A7, 34 A8, 35 A9, 36 A15, 37 A12, 38 A13, 39 A14, 40 A11. Reference only; tests bind to the RTL port names in §2.
 - [x] AC after ANA/ANI: not stated in the User's Manual (p.4-8 says "standard rules"); confirmed from the second source below.
 
