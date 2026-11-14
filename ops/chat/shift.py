@@ -180,6 +180,8 @@ async def work_turn(agent: str, items: list[dict]):
         gap = SHIFT["idle_gap_seconds"]
     s = state[agent]
     s.update(last_result=kind, last_end=time.time(), next=time.time() + gap, rebase=True)
+    if kind == "IDLE":                   # rule 12: idle turns post nothing
+        return
     db.add("work", agent, _report(answer) if ok else answer[-600:])
 
 

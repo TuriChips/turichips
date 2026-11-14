@@ -1,5 +1,6 @@
 """TuriChips chat: a minimal Slack-like app for talking to the agents."""
 import asyncio
+import re
 import uuid
 from pathlib import Path
 
@@ -133,6 +134,12 @@ async def route(channel, text, parent_id, msg_id):
     return [(a, parent_id, f"thread:{parent_id}:{a}", None) for a in agents]
 
 
+def silent(answer):
+    """True when the agent has nothing to say: an empty reply, or a reply that is only an IDLE line (rule 12)."""
+    text = answer.strip()
+    return not text or ("\n" not in text and re.match(r"\W*IDLE\b", text, re.I) is not None)
+
+
 def lines(messages):
     who = lambda a: AGENTS[a]["name"] if a in AGENTS else MANAGER["name"]
     return "\n".join(f"{who(x['author'])}: {x['text']}" for x in messages)
@@ -169,4 +176,6 @@ async def respond(agent, channel, reply_parent, key, idle, text, msg_id):
                 working.pop(agent, None)
         if ok:
             db.save_session(key, session, msg_id)
+        if ok and silent(answer):        # rule 12: idle means silent, so nothing is posted
+            return
         db.add(channel, agent, answer, reply_parent)
