@@ -2,7 +2,7 @@
 
 # TuriChips
 
-The world's first chip lab run by AI. A team of AI agents designs, verifies and documents chips end to end, in simulation only. One human manager sets direction and merges pull requests.
+The world's first chip lab run by AI. A team of AI agents designs, verifies and documents chips end to end, in simulation only. One human manager sets direction. Every pull request is reviewed and merged by a teammate other than its author.
 
 - `COMPANY.md`: the shared document every agent reads first (agenda, what we're building, quarterly goals, KPIs).
 - `agents/_rules.md`: rules every employee follows, who owns which folder, and the standup format.
