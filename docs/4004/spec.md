@@ -6,7 +6,7 @@ Sources, to be checked in §10:
 - Intel, *MCS-4 Micro Computer Set Users Manual*, Rev. 4, February 1973 (instruction set, timing, 4001/4002).
 - Intel, *4004 Single Chip 4-Bit P-Channel Microprocessor* datasheet (pins, timing diagram).
 
-§10 records, item by item, where each fact was checked. Every item is now checked except the Busicom license (§9). Facts the manual doesn't pin down at the pins are settled here as **decisions** (marked *Decision*); they are ours, not Intel's, and the tests follow them.
+§10 records, item by item, where each fact was checked. Every item is now checked, including the Busicom license (§9, approved by Sai 2026-11-14). Facts the manual doesn't pin down at the pins are settled here as **decisions** (marked *Decision*); they are ours, not Intel's, and the tests follow them.
 
 ## 1. Scope
 - The **4004 CPU**, cycle-accurate at its 16 pins: every clock phase, the value on `d[3:0]`, `sync`, `cm_rom` and `cm_ram[3:0]` is specified (§4).
@@ -197,7 +197,7 @@ All 8 rows confirmed against the truth table on manual p.36 (page image).
 | C9 | Random programs: the RTL and Beru's reference model agree on every pin, every clock, for N random programs (N set by Beru, at least 10,000 programs × 1,000 cycles) |
 
 ## 9. Acceptance tests (software not written by this team)
-1. **Busicom 141-PF calculator firmware**, the program the 4004 was built for, running on `mcs4_system` with a model of the printer/keyboard I/O: key in sums and check the printed results. Source: the reconstructed and commented listing published by the 4004 restoration project (Tim McNerney et al.). Checked 2026-11-14: 4004.com says works on the site are under **CC BY-NC-SA 3.0** "unless noted". The listing itself doesn't carry its own terms on the page we found. Because of rule 9 (no copied code in the repo), the ROM image is **never committed**: the test downloads it at run time from the project's site, and the release credits the Silvermans and Lajos Kintli. **Open for Sai at sign-off:** whether non-commercial-licensed material may be used in our tests at all. If not, drop this test and rely on 2 and 3, and say so in the release.
+1. **Busicom 141-PF calculator firmware**, the program the 4004 was built for, running on `mcs4_system` with a model of the printer/keyboard I/O: key in sums and check the printed results. Source: the reconstructed and commented listing published by the 4004 restoration project (Tim McNerney et al.). Checked 2026-11-14: 4004.com says works on the site are under **CC BY-NC-SA 3.0** "unless noted". The listing itself doesn't carry its own terms on the page we found. Because of rule 9 (no copied code in the repo), the ROM image is **never committed**: the test downloads it at run time from the project's site, and the release credits the Silvermans and Lajos Kintli. *Decision (Sai, 2026-11-14, #standup):* approved. The test may use this non-commercial-licensed listing on these terms: download it at test time, never commit it, credit it in the release. If the listing turns out to carry its own stricter terms, we drop the test and rely on 2 and 3.
 2. **Example programs from the MCS-4 Users Manual** (e.g. multi-digit decimal addition, subtraction), typed in from the manual. Expected results come from the manual's text.
 3. **Instruction-level comparison against an independent, existing 4004 emulator** (to be chosen by Beru; it must not be written by this team), run on the same random programs as C9.
 
@@ -219,4 +219,4 @@ Source read: Intel *MCS-4 Micro Computer Set Users Manual* (Feb 1973 scan, OCR t
 - [x] KBP: all 16 rows match the table on p.36 (page image read)
 - [x] §7 4002: X2 nibble = 2 bits chip + 2 bits register, X3 = character (p.15); ROM uses the X2 nibble only and ignores X3 (p.15)
 - [x] §7 4002 chip number: modelled as a parameter. The strap table on p.21 is illegible in this scan (empty chip-number column), so it is deliberately not specified
-- [ ] Busicom 141-PF license: CC BY-NC-SA 3.0 (site-wide, 4004.com). Needs Sai's decision (§9)
+- [x] Busicom 141-PF license: CC BY-NC-SA 3.0 (site-wide, 4004.com). Sai approved use at test time, never committed (2026-11-14, §9)
