@@ -65,7 +65,7 @@ RESET held for at least 3 clock periods restores PC to 0; it "has no effect on s
 - Stack, I/O, machine control: PUSH, POP (incl. PSW), XTHL, SPHL, IN, OUT, EI, DI, HLT, NOP.
 
 Known quirks to pin down exactly (each needs a source):
-- **AC after ANA/ANI**: the User's Manual (p.4-8) only says the logical group affects Z, S, P, AC, CY "according to the standard rules" and that ANA clears CY; it gives **no AC rule** for AND. The commonly cited 8080 behaviour (AC = bit 3 of A OR bit 3 of the operand; the 8085 differs) needs a second primary source, e.g. Intel's *8080/8085 Assembly Language Programming Manual*, before it is normative. Until then this is an open item, not a fact.
+- **AC after logical instructions** (confirmed §10): ANA/ANI set **AC = (bit 3 of A) OR (bit 3 of the operand)**, before the AND, and clear CY (8080/8085 Assembly Language Programming Manual p.1-11: "The 8080 logical AND instructions set the flag to reflect the logical OR of bit 3 of the values involved"; on the 8085 AND always sets AC, so the 8080 rule is the one we follow). ORA, XRA, XRI clear both CY and AC (same manual, ch.3); ORI the same [check]. The 1975 User's Manual (p.4-8) only says "standard rules" for these, which is why the second source is needed.
 - **CY after SUB/CMP**: set on borrow (inverse of the 4004's SUB convention). This needs an explicit statement.
 - **DAA**: the exact two-step rule, including AC and CY in and out.
 - **Undocumented opcodes** (08, 10, 18, 20, 28, 30, 38 as NOP; CB as JMP; D9 as RET; DD, ED, FD as CALL) [check]. *Proposed decision*: specify them as the real part behaves if the source is solid, else "execute as documented NOP-like; tests must not depend on it", as the 4004's FE/FF.
@@ -95,6 +95,11 @@ Source read: Intel *8080 Microcomputer Systems User's Manual*, September 1975 (9
 - [x] Status byte bit assignment: D0 INTA, D1 WO (active low: 0 = write/output), D2 STACK, D3 HLTA, D4 OUT, D5 M1, D6 INP, D7 MEMR (Table 2-1, p.2-6).
 - [x] Reset: ≥ 3 clock periods, PC to 0, no effect on flags, A, B–L or SP (p.2-13).
 - [ ] Reset effect on INTE and the instruction register.
-- [ ] AC after ANA/ANI: **not stated in this manual** (p.4-8 says "standard rules"). Needs the 8080/8085 Assembly Language Programming Manual or another primary source.
+- [x] AC after ANA/ANI: not stated in the User's Manual (p.4-8 says "standard rules"); confirmed from the second source below.
+
+Second source: Intel *8080/8085 Assembly Language Programming Manual* (9800301D, May 1981, scan with text layer), read 2026-11-14 by Igris.
+- [x] ANA/ANI: AC = OR of bit 3 of the two operands; 8085 differs (always sets AC) (p.1-11).
+- [x] ORA r/M, XRA M, XRI: CY and AC reset to 0 (ch.3, near pp.3-39 and 3-66/3-67; exact page to be re-read from the page image).
+- [ ] ORI: same rule expected, not yet read.
 - [ ] Pinout, pin polarities (WR active low), READY/HOLD/INT sampling points, instruction state counts, DAA rule, I/O port on both address halves.
 - [ ] Undocumented opcodes: not expected in Intel's manuals at all; needs a decision on sources (§6).
