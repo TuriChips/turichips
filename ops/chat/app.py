@@ -22,6 +22,15 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 db.init()
 
+
+@app.middleware("http")
+async def no_stale_pages(request, call_next):
+    """The phone app's WebView caches aggressively; make it revalidate so web changes show at once."""
+    response = await call_next(request)
+    if not request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
 slots = asyncio.Semaphore(MAX_PARALLEL)
 agent_locks = {a: asyncio.Lock() for a in AGENTS}
 working: dict[str, dict] = {}  # agent -> {"channel", "parent_id"}
