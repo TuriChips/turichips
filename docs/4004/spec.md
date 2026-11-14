@@ -6,7 +6,7 @@ Sources, to be checked in §10:
 - Intel, *MCS-4 Micro Computer Set Users Manual*, Rev. 4, February 1973 (instruction set, timing, 4001/4002).
 - Intel, *4004 Single Chip 4-Bit P-Channel Microprocessor* datasheet (pins, timing diagram).
 
-§10 records, item by item, where each fact was checked. Every item is now checked except the Busicom license (§9).
+§10 records, item by item, where each fact was checked. Every item is now checked except the Busicom license (§9). Facts the manual doesn't pin down at the pins are settled here as **decisions** (marked *Decision*); they are ours, not Intel's, and the tests follow them.
 
 ## 1. Scope
 - The **4004 CPU**, cycle-accurate at its 16 pins: every clock phase, the value on `d[3:0]`, `sync`, `cm_rom` and `cm_ram[3:0]` is specified (§4).
@@ -36,35 +36,63 @@ The real bidirectional bus is split into `d_in`, `d_out` and `d_oe` so the RTL h
 | `acc` | 4 | 0 | Accumulator |
 | `cy` | 1 | 0 | Carry/link |
 | `r[0..15]` | 16 × 4 | 0, only if reset is held ≥ 64 clocks (§5) | Index registers. Pair `P0..P7` = `{r[2p], r[2p+1]}`, with `r[2p]` the **high** nibble |
-| `pc` | 12 | 0 | Program counter (stack level 0) |
-| `stack[1..3]` | 3 × 12 | 0 | Return addresses. JMS pushes, BBL pops. A 4th JMS loses the deepest (first-stored) return address (manual p.13) |
+| `slot[0..3]` | 4 × 12 | 0 | The address register: 4 × 12-bit slots (manual p.12: "any one of the 4 registers can be used as the program counter") |
+| `sp` | 2 | 0 | Which slot is the program counter. `pc` means `slot[sp]` |
 | `src_addr` | 8 | 0 | Last value sent by SRC (chip/register/character select for I/O and RAM instructions) |
 | `ram_bank` | 3 | 0 | Set by DCL, selects which CM-RAM line(s) are active (§6.5) |
+
+**Stack (normative, circular model).** JMS: `slot[sp]` = address after the JMS's second word; `sp = sp + 1` (mod 4); `slot[sp]` = target. BBL: `sp = sp − 1` (mod 4); execution continues at `slot[sp]`. Nothing else is cleared or moved. Consequences, which C4 tests:
+- 3 nested JMS / 3 BBL return correctly.
+- JMS ×4 (return addresses r1..r4, starting from `sp` = 0) then BBL ×4: returns to r4, r3, r2, and then to `slot[0]`, which the 4th JMS overwrote and which then served as the PC inside subroutine 4. So the 4th BBL lands at **the address after the BBL that left subroutine 4**. r1 is lost (manual p.13).
+- BBL right after reset: `sp` 0 → 3, `pc = slot[3] = 0`.
+
+`pc` arithmetic is mod 4096 everywhere: the word after 0xFFF is 0x000, and the page rules in §6.2 wrap page 15 to page 0.
 
 Address space: 4096 bytes of ROM (16 × 4001), in 16 pages of 256. Every instruction is 1 or 2 bytes (words). A 2-word instruction takes 2 instruction cycles.
 
 ## 4. Instruction cycle timing (normative)
 One instruction cycle = 8 clock periods, in this order:
 
-| Period | Name | Bus (`d`) carries | Driver | `cm_rom` | `cm_ram` | `sync` |
-|--------|------|-------------------|--------|----------|----------|--------|
-| 0 | A1 | `pc[3:0]` | 4004 | 0 | 0 | 0 |
-| 1 | A2 | `pc[7:4]` | 4004 | 0 | 0 | 0 |
-| 2 | A3 | `pc[11:8]` | 4004 | 1 | selected bank(s); meaningless to RAMs (manual p.15) | 0 |
-| 3 | M1 | OPR (high nibble of the instruction byte) | ROM | 0 | 0 | 0 |
-| 4 | M2 | OPA (low nibble) | ROM | 1 if I/O-group (OPR = 1110), else 0 | selected bank(s) if I/O-group, else 0 | 0 |
-| 5 | X1 | instruction dependent (§6) | §6 | 0 | 0 | 0 |
-| 6 | X2 | SRC: `src_addr[7:4]` from the pair; I/O read: data in; I/O write: `acc` out | §6 | 1 if SRC | selected bank(s) if SRC | 0 |
-| 7 | X3 | SRC: `src_addr[3:0]` | §6 | 0 | 0 | **1** |
+Every period of every cycle is defined at the pins. In the table, "–" for `d_out` means `d_oe` = 0 and `d_out` is **not compared**. `d_oe` is always compared.
 
-- `pc` increments once per word fetched, after M2. When exactly it updates is not visible at the pins except through A1–A3, so any internal choice that gives the right A1–A3 values is allowed.
-- After `reset` goes low, the first clock period is A1 of a cycle fetching address 0x000.
-- Only the bus values in A1–A3, X2 and X3, and the `cm_*`/`sync` lines, are pin-visible requirements. The RTL may do anything internally during M1/M2/X1 as long as the pins match.
+| Period | Name | `d_oe` | `d_out` | Who drives `d_in` | `cm_rom` | `cm_ram` | `sync` |
+|--------|------|--------|---------|-------------------|----------|----------|--------|
+| 0 | A1 | 1 | `a[3:0]` | – | 0 | 0 | 0 |
+| 1 | A2 | 1 | `a[7:4]` | – | 0 | 0 | 0 |
+| 2 | A3 | 1 | `a[11:8]` | – | 1 | `lines` | 0 |
+| 3 | M1 | 0 | – | selected ROM: OPR | 0 | 0 | 0 |
+| 4 | M2 | 0 | – | selected ROM: OPA | `io` | `io ? lines : 0` | 0 |
+| 5 | X1 | 0 | – | nobody | 0 | 0 | 0 |
+| 6 | X2 | see below | see below | see below | `src` | `src ? lines : 0` | 0 |
+| 7 | X3 | `src` | `src ? src_addr[3:0]` : – | nobody | 0 | 0 | **1** |
+
+- `a` = the address this cycle fetches: `pc` for a normal fetch, and `{page, P0}` in FIN's second cycle (§6.2).
+- `lines` = the CM-RAM lines selected by `ram_bank` (§6.5). CM-RAMi at A3 means nothing to RAMs (manual p.15) but is driven anyway.
+- `io` = 1 when the word fetched this cycle is a **first word** with OPR = 1110. `src` = 1 when it is a first word that is SRC.
+- **The second cycle of a 2-word instruction (JCN, FIM, JUN, JMS, ISZ)**: A1–M2 fetch the second word exactly like a normal fetch (`io` = `src` = 0), X1–X3 as for a non-I/O instruction. In the first cycle, X1–X3 are also as for a non-I/O instruction.
+- **FIN's second cycle**: A1–A3 drive `{page, P0}` (page per §6.2), the ROM drives the data byte at M1/M2, `cm_rom` = 1 at A3, X1–X3 as for non-I/O. `pc` doesn't advance in this cycle.
+
+X2 by instruction class:
+
+| Class | `d_oe` | `d_out` | Who drives `d_in` |
+|-------|--------|---------|-------------------|
+| SRC | 1 | `src_addr[7:4]` (= the pair's high nibble) | – |
+| I/O write: WRM, WMP, WRR, WPM, WR0–WR3 | 1 | `acc` | – |
+| I/O read: RDM, RDR, ADM, SBM, RD0–RD3 | 0 | – | the selected RAM (RDM, ADM, SBM, RDn) or ROM (RDR); 0000 if none is selected |
+| everything else | 0 | – | nobody |
+
+*Decision:* in every cell the manual leaves open (X1 for all classes, X3 for non-SRC, X2 for non-I/O), the 4004 does not drive the bus. ROMs and RAMs ignore those periods, so this is invisible in a real system.
+
+- `pc` increments once per word fetched (normal fetches only, not FIN's data fetch). When exactly it updates is invisible at the pins except through A1–A3.
+- After `reset` goes low, the first clock period is A1 of a cycle fetching 0x000.
+- **TEST** (*Decision*): JCN samples `test` on the rising `clk` edge that ends X3 of its **first** cycle. Testbenches and C9 stimulus change `test` only on the edge that starts A1, so the sampling point inside the cycle never matters to a correct design.
 
 ## 5. Reset
 Manual p.10: during reset all static flip-flops are cleared, the data bus is 0, timing starts from step 0 and CM-RAM0 is selected. The index registers are dynamic and are cleared only if RESET is held for **at least 8 instruction cycles (64 clock periods)**, so the refresh counter scans all of them.
 
 Our model: while `reset` = 1 on a rising `clk` edge, `acc`, `cy`, `pc`, the stack, `src_addr`, `ram_bank` (0 = CM-RAM0) and the cycle counter (to A1) are cleared. `r[0..15]` must be 0 after `reset` has been 1 for 64 consecutive edges; the RTL may clear them sooner. Tests always hold `reset` for ≥ 64 edges and must not check `r` after a shorter reset.
+
+**Pins while `reset` = 1** (*Decision*): `d_oe` = 0, `sync` = 0, `cm_rom` = 0, `cm_ram` = 4'b0000. Nothing else is compared while `reset` = 1. Comparison starts at the first A1 after `reset` falls.
 
 ## 6. Instructions (normative)
 46 instructions. `OPR` = high nibble of the first word, `OPA` = low nibble. `R` = `r[OPA]`, `P` = pair `OPA[3:1]`. All arithmetic is mod 16 unless noted.
@@ -103,11 +131,11 @@ All act on the chip, register and character selected by the last SRC and by `ram
 | E0 | WRM | M = `acc` |
 | E1 | WMP | RAM output port = `acc` |
 | E2 | WRR | ROM I/O port = `acc` |
-| E3 | WPM | Write program RAM (4008/4009 only). **No effect in our system.** Pins as for any I/O-group instruction (§4) |
+| E3 | WPM | Write program RAM (4008/4009 only). **No effect in our system.** Pins: I/O-write class (`acc` on the bus at X2; manual p.27 sends data out at X2 of WPM) |
 | E4–E7 | WR0–WR3 | S0–S3 = `acc` |
 | E8 | SBM | `{cy, acc} = acc + ~M + ~cy` |
 | E9 | RDM | `acc = M` |
-| EA | RDR | `acc` = ROM I/O port |
+| EA | RDR | `acc` = ROM I/O port (§7: lines configured as outputs read as 0) |
 | EB | ADM | `{cy, acc} = acc + M + cy` |
 | EC–EF | RD0–RD3 | `acc` = S0–S3 |
 
@@ -125,7 +153,7 @@ All act on the chip, register and character selected by the last SRC and by `ram
 | F8 | DAC | `{cy, acc} = acc + 4'b1111`, so `cy` = 0 exactly when `acc` was 0 (borrow) |
 | F9 | TCS | `acc = cy ? 10 : 9`, `cy = 0` |
 | FA | STC | `cy = 1` |
-| FB | DAA | if `cy` or `acc > 9`: `acc = acc + 6`, and `cy = 1` if that addition carries out; otherwise `cy` unchanged |
+| FB | DAA | `if (cy \|\| acc > 9) { t = acc + 6 (5 bits); acc = t[3:0]; cy = cy \| t[4]; }` else nothing. So `cy` is never cleared by DAA: `cy`=1, `acc`=2 gives `acc`=8, `cy`=1 (manual p.35: "set to 1 if the result generates a carry, otherwise unaffected") |
 | FC | KBP | `acc` = 0→0, 1→1, 2→2, 4→3, 8→4, anything else → 15 |
 | FD | DCL | `ram_bank = acc[2:0]` (§6.5) |
 | FE, FF | (none) | Not instructions. **Decision: execute as NOP.** Tests must not depend on it |
@@ -141,10 +169,10 @@ All act on the chip, register and character selected by the last SRC and by `ram
 | 101 | CM-RAM1, CM-RAM3 |
 | 110 | CM-RAM2, CM-RAM3 |
 | 111 | CM-RAM1, CM-RAM2, CM-RAM3 |
-Structure confirmed (manual p.36: three accumulator bits, 8 codes, 000 = CM-RAM0 only); the scan's table is partly unreadable in OCR, so the row-by-row mapping is still to be read off the page image.
+All 8 rows confirmed against the truth table on manual p.36 (page image).
 
 ## 7. System: 4001 and 4002 (reduced detail)
-- `i4001` ROM: 256 × 8 contents from a `$readmemh` file, chip number 0–15 (strap), 4-bit I/O port configured as all-output or all-input per chip (metal-mask option, here a parameter). It responds to A1–A3 with its chip number on A3 + `cm_rom`, and drives OPR/OPA at M1/M2. SRC's high nibble at X2 with `cm_rom` selects the chip for WRR/RDR.
+- `i4001` ROM: 256 × 8 contents from a `$readmemh` file, chip number 0–15 (strap), 4-bit I/O port configured as all-output or all-input per chip (metal-mask option, here a parameter `PORT_IN`). WRR to an input-configured port does nothing (manual p.34: "no operation is performed on I/O lines coded as inputs"). RDR from an output-configured port returns 0000 (*Decision*; on the real chip the mask chooses the value read back). The selected ROM drives `d_in` at X2 of RDR whatever its configuration. C9's random systems use one known configuration per chip, recorded in the test. It responds to A1–A3 with its chip number on A3 + `cm_rom`, and drives OPR/OPA at M1/M2. SRC's high nibble at X2 with `cm_rom` selects the chip for WRR/RDR.
 - `i4002` RAM: 4 registers × 16 data characters + 4 status characters, 4 bits each; 4-bit output port. Chip select = `src_addr[7:6]`, register = `src_addr[5:4]` (manual p.15), with the chip number set by a parameter `CHIP[1:0]` that the 4002 compares with `src_addr[7:6]`. On real chips it comes from the 4002-1/-2 metal option plus the P0 pin (manual p.21). That mapping is not modelled, because the scan's table is illegible and the behaviour at the bus is the same, character = `src_addr[3:0]`, bank = which `cm_ram` line it is on.
 - `mcs4_system`: one 4004, up to 16 4001s, up to 16 4002s (4 per bank × 4 banks). The default build for tests is 1 × 4001 per program page used, 4 × 4002 on bank 0.
 
@@ -152,9 +180,9 @@ Structure confirmed (manual p.36: three accumulator bits, 8 codes, 000 = CM-RAM0
 | ID | Behaviour |
 |----|-----------|
 | C1 | Each of the 46 instructions gives exactly the §6 result on `acc`, `cy`, registers, `pc`, stack, RAM and ports, including the `cy` cases of ADD/SUB/ADM/SBM/IAC/DAC/DAA |
-| C2 | Pin timing: for every instruction class, `d_out`/`d_oe`, `sync`, `cm_rom`, `cm_ram` per period match §4 |
+| C2 | Pin timing: for every instruction class, including both cycles of 2-word instructions and FIN's second cycle, every period's `d_oe`, `d_out` (where compared), `sync`, `cm_rom`, `cm_ram` match §4 |
 | C3 | Page quirk: JCN, ISZ, FIN and JIN with the second word (or next instruction) at xFF go to page x+1 |
-| C4 | Stack: 3 nested JMS/BBL return correctly; a 4th JMS overwrites the oldest |
+| C4 | Stack per §3's circular model: 3 nested JMS/BBL; JMS ×4 then BBL ×4 (exact addresses); BBL right after reset |
 | C5 | JCN: all 16 condition codes × (`acc`==0 or not) × `cy` × `test` |
 | C6 | DCL: all 8 bank codes give the §6.5 lines on SRC and on I/O instructions |
 | C7 | Reset: after reset, fetch starts at 0x000 with `acc` = `cy` = 0 |
@@ -167,13 +195,13 @@ Structure confirmed (manual p.36: three accumulator bits, 8 codes, 000 = CM-RAM0
 3. **Instruction-level comparison against an independent, existing 4004 emulator** (to be chosen by Rook; it must not be written by this team), run on the same random programs as C9.
 
 ## 10. Datasheet check
-Source read: Intel *MCS-4 Micro Computer Set Users Manual* (Feb 1973 scan, OCR text layer), on 2026-11-14 by Vera. Page numbers are the manual's printed page numbers. The OCR is noisy, so items marked "page image" still need someone to read the scan directly.
+Source read: Intel *MCS-4 Micro Computer Set Users Manual* (Feb 1973 scan, OCR text layer), on 2026-11-14 by Vera. Page numbers are the manual's printed page numbers. The OCR is noisy; where it was unreadable, the page image was read instead, and the item says so.
 
 - [x] Negative logic in the original (p.6), so our positive-logic choice is a deliberate deviation (§1)
 - [x] 8 clock periods per instruction cycle, 10.8 µs (p.6, p.28)
 - [x] §2 pin numbers. CM-RAM0..3 = 16, 15, 14, 13 (decoder figure, p.36), SYNC = 8 (p.86), TEST = 10 (p.32). The rest follows from the pad order around the die photo (p.ii: D0, D1, D2, D3, VSS, φ1, φ2, SYNC, RESET, TEST, CM-ROM, VDD, CM-RAM3..0), anchored by those pins: D0–D3 = 1–4, VSS = 5, φ1 = 6, φ2 = 7, RESET = 9, CM-ROM = 11, VDD = 12. The 4002's own pinout is drawn on p.21 and matches the same convention
 - [x] §4 bus contents: A1–A3 address, M1/M2 OPR/OPA, X2/X3 SRC address (p.6, p.15, p.30)
-- [x] §4 CM lines: CM-ROM + CM-RAMi at A3 (meaningless to RAMs), at M2 for I/O-group, at X2 for SRC (p.15). Fig. 4's exact edges: page image
+- [x] §4 CM lines: CM-ROM + CM-RAMi at A3 (meaningless to RAMs), at M2 for I/O-group, at X2 for SRC (p.15, text). Fig. 4 (p.14) not read edge by edge; the text is enough because the model is per clock period, not per edge
 - [x] §5 reset: static FFs cleared, index registers need ≥ 64 clock periods (p.10)
 - [x] §3 stack: a 4th JMS loses the deepest address (p.13)
 - [x] §6.2 page quirk for JCN (words 254/255), ISZ (254/255), FIN (at xFF), JIN (at xFF) (p.30–32)
