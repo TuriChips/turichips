@@ -51,7 +51,7 @@ The real 40-pin package (pinout in §10) has a bidirectional 8-bit data bus. As 
 Memory: 64 KiB, byte addressed. I/O: 256 input and 256 output ports, the port number is put on both halves of the address bus [check].
 
 ## 4. Machine cycle timing (normative once checked)
-To be written, at the same level as the 4004's §4: per machine-cycle type (instruction fetch, memory read, memory write, stack read, stack write, input, output, interrupt acknowledge, halt acknowledge, interrupt acknowledge while halted), and per T state, the values of `a`, `a_oe`, `d_out`, `d_oe`, `sync`, `dbin`, `wr_n`, `wait_o`, `hlda`. Instructions take 4, 5, 7, 10, 11, 13, 16 or 18 states [check: 5 for INX/DCX, MOV r,r; 18 for XTHL]. READY sampled in T2 [check], HOLD sampled in T2 [check], INT sampled at the end of the last state of each instruction [check].
+To be written, at the same level as the 4004's §4: per machine-cycle type (instruction fetch, memory read, memory write, stack read, stack write, input, output, interrupt acknowledge, halt acknowledge, interrupt acknowledge while halted), and per T state, the values of `a`, `a_oe`, `d_out`, `d_oe`, `sync`, `dbin`, `wr_n`, `wait_o`, `hlda`. Instructions take 4, 5, 7, 10, 11, 13, 16, 17 or 18 states. From the User's Manual instruction summary: INX/DCX 5, DAD 10, SHLD/LHLD 16, CALL 17, Ccc 11/17, Rcc 5/11, XTHL 18, DAA 4 (confirmed §10). The full per-opcode table gets transcribed from that summary. READY sampled in T2 [check], HOLD sampled in T2 [check], INT sampled at the end of the last state of each instruction [check].
 
 ## 5. Reset
 RESET held for at least 3 clock periods restores PC to 0; it "has no effect on status flags, or on any of the processor's working registers (accumulator, registers, or stack pointer)", which stay indeterminate until the program sets them (User's Manual p.2-13, confirmed §10). RESET also resets INTE and HLDA (p.5-14). The instruction register on reset: [check]. *Decision:* tests hold reset ≥ 3 clocks and must not read A, B–L, SP or F before writing them; the RTL may clear them.
@@ -65,9 +65,9 @@ RESET held for at least 3 clock periods restores PC to 0; it "has no effect on s
 - Stack, I/O, machine control: PUSH, POP (incl. PSW), XTHL, SPHL, IN, OUT, EI, DI, HLT, NOP.
 
 Known quirks to pin down exactly (each needs a source):
-- **AC after logical instructions** (confirmed §10): ANA/ANI set **AC = (bit 3 of A) OR (bit 3 of the operand)**, before the AND, and clear CY (8080/8085 Assembly Language Programming Manual p.1-11: "The 8080 logical AND instructions set the flag to reflect the logical OR of bit 3 of the values involved"; on the 8085 AND always sets AC, so the 8080 rule is the one we follow). ORA, XRA, XRI clear both CY and AC (same manual, ch.3); ORI the same [check]. The 1975 User's Manual (p.4-8) only says "standard rules" for these, which is why the second source is needed.
+- **AC after logical instructions** (confirmed §10): ANA/ANI set **AC = (bit 3 of A) OR (bit 3 of the operand)**, before the AND, and clear CY (8080/8085 Assembly Language Programming Manual p.1-11: "The 8080 logical AND instructions set the flag to reflect the logical OR of bit 3 of the values involved"; on the 8085 AND always sets AC, so the 8080 rule is the one we follow). ORA, XRA, XRI clear both CY and AC (same manual, ch.3), and ORI too (User's Manual p.4-9: "The CY and AC flags are cleared"). The 1975 User's Manual (p.4-8) only says "standard rules" for these, which is why the second source is needed.
 - **CY after SUB/CMP**: set on borrow (inverse of the 4004's SUB convention). This needs an explicit statement.
-- **DAA**: the exact two-step rule, including AC and CY in and out.
+- **DAA** (User's Manual p.4-8, ALP manual p.3-19; 4 states): step 1, if `A[3:0] > 9` or AC = 1, add 6 to A, and **AC = carry out of bit 3** of that addition, else AC = 0 [check: AC when step 1 doesn't add]. Step 2, if `A[7:4] > 9` (after step 1) or CY = 1, add 6 to `A[7:4]`. **CY = 1 if that addition carries out of bit 7** (the ALP example: 93+08 → 9B → A1 → 01, CY = AC = 1). *Decision* (not stated by either manual): CY = CY_in OR carry-out, so a CY that was already 1 stays 1. A set CY means the decimal result already exceeds 99. Z, S, P from the final A.
 - **Undocumented opcodes** (08, 10, 18, 20, 28, 30, 38 as NOP; CB as JMP; D9 as RET; DD, ED, FD as CALL) [check]. *Proposed decision*: specify them as the real part behaves if the source is solid, else "execute as documented NOP-like; tests must not depend on it", as the 4004's FE/FF.
 
 ## 7. System for tests (reduced detail)
@@ -103,6 +103,8 @@ Source read: Intel *8080 Microcomputer Systems User's Manual*, September 1975 (9
 Second source: Intel *8080/8085 Assembly Language Programming Manual* (9800301D, May 1981, scan with text layer), read 2026-11-14 by Igris.
 - [x] ANA/ANI: AC = OR of bit 3 of the two operands; 8085 differs (always sets AC) (p.1-11).
 - [x] ORA r/M, XRA M, XRI: CY and AC reset to 0 (ch.3, near pp.3-39 and 3-66/3-67; exact page to be re-read from the page image).
-- [ ] ORI: same rule expected, not yet read.
-- [ ] Exact READY sampling state, instruction state counts, DAA rule, I/O port number on both address halves (p.5-14 only says A15–A0 "denotes the I/O device number for up to 256 input and 256 output devices").
+- [x] ORI: CY and AC cleared (User's Manual p.4-9).
+- [x] DAA steps (User's Manual p.4-8) and its flags: AC from step 1, CY from step 2's carry (ALP manual p.3-19 example). CY_in kept: *Decision*, not in either manual.
+- [x] State counts (instruction summary table): INX/DCX 5, DAD 10, SHLD/LHLD 16, CALL 17, Ccc 11/17, Rcc 5/11, XTHL 18, DAA 4. Remaining opcodes to transcribe into §6.
+- [ ] Exact READY sampling state, I/O port number on both address halves (p.5-14 only says A15–A0 "denotes the I/O device number for up to 256 input and 256 output devices").
 - [ ] Undocumented opcodes: not expected in Intel's manuals at all; needs a decision on sources (§6).
