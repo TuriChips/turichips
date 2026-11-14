@@ -9,7 +9,7 @@ All blocks are synchronous to the one rising-edge `clk` (spec §1). `reset` is s
 | Block | File | Owner | State it holds |
 |-------|------|-------|----------------|
 | `i4004_timing` | rtl/control/i4004_timing.v | Zura (A) | period counter |
-| `i4004_control` | rtl/control/i4004_control.v | Zura (A) | instruction register, cycle state, `src_addr`, `ram_bank` |
+| `i4004_control` | rtl/control/i4004_control.v | Zura (A) | instruction register, second-cycle flag (both cleared by reset, spec §5), `src_addr`, `ram_bank` |
 | `i4004_alu` | rtl/datapath/i4004_alu.v | Ada (B) | `acc`, `cy` |
 | `i4004_regs` | rtl/datapath/i4004_regs.v | Ada (B) | `r[0..15]` |
 | `i4004_addr` | rtl/datapath/i4004_addr.v | Ada (B) | `slot[0..3]`, `sp` |
@@ -118,9 +118,11 @@ The ROM recognises an I/O instruction by `cm_rom` = 1 at M2 (spec §4 `io`), and
 Parameter: `CHIP` (2 bits, compared with `src_addr[7:6]`).
 | Port | Dir | Width | Meaning |
 |------|-----|-------|---------|
-| `clk`, `reset` | in | 1, 1 | `reset` clears the port latch and the selection, not the RAM contents |
+| `clk`, `reset` | in | 1, 1 | `reset` clears the SRC latch, the port latch and the RAM contents (spec §7) |
 | `sync` | in | 1 | As for `i4001` |
 | `cm_ram` | in | 1 | The one CM-RAM line this chip is wired to (its bank) |
+
+The chip latches SRC only when `cm_ram` = 1 at X2, and acts on an I/O instruction only when `cm_ram` = 1 at M2 (spec §6.3, per-chip model).
 | `bus` | in | 4 | Resolved bus |
 | `d_out`, `d_oe` | out | 4, 1 | Drives M or S_n at X2 of RDM/ADM/SBM/RD0–RD3 when selected |
 | `port_out` | out | 4 | Output port latch (WMP); 0 after reset |

@@ -28,7 +28,7 @@ Sources, to be checked in §10:
 | `cm_rom` | out | 1 | CM-ROM | 11 |
 | `cm_ram[3:0]` | out | 4 | CM-RAM0..3 | 16, 15, 14, 13 |
 
-The real bidirectional bus is split into `d_in`, `d_out` and `d_oe` so the RTL has no tri-states. The system top (§7) resolves it as `bus = d_oe ? d_out : (any ROM/RAM driving ? its value : 4'b0000)`. A cycle where two drivers are on at once is a bug, and the tests must flag it.
+The real bidirectional bus is split into `d_in`, `d_out` and `d_oe` so the RTL has no tri-states. The system top (§7) resolves it as `bus = d_oe ? d_out : (any ROM/RAM driving ? its value : 4'b0000)`. A period where two drivers are on at once is a design bug and the tests must flag it, with one exception that the program causes, not the design: a RAM read with several populated banks active (§7, *Decision* C).
 
 ## 3. Programmer's model
 | Name | Width | Reset value | Notes |
@@ -90,7 +90,7 @@ X2 by instruction class:
 ## 5. Reset
 Manual p.10: during reset all static flip-flops are cleared, the data bus is 0, timing starts from step 0 and CM-RAM0 is selected. The index registers are dynamic and are cleared only if RESET is held for **at least 8 instruction cycles (64 clock periods)**, so the refresh counter scans all of them.
 
-Our model: while `reset` = 1 on a rising `clk` edge, `acc`, `cy`, `pc`, the stack, `src_addr`, `ram_bank` (0 = CM-RAM0) and the cycle counter (to A1) are cleared. `r[0..15]` must be 0 after `reset` has been 1 for 64 consecutive edges; the RTL may clear them sooner. Tests always hold `reset` for ≥ 64 edges and must not check `r` after a shorter reset.
+Our model: while `reset` = 1 on a rising `clk` edge, `acc`, `cy`, `pc`, the stack, `src_addr`, `ram_bank` (0 = CM-RAM0), the cycle counter (to A1) and the instruction state are cleared. The instruction state is the instruction register and the "this is the second cycle of a 2-word instruction or of FIN" flag. So reset in the middle of a 2-word instruction or FIN abandons it, and the first fetch after reset is always decoded as a first word. `r[0..15]` must be 0 after `reset` has been 1 for 64 consecutive edges; the RTL may clear them sooner. Tests always hold `reset` for ≥ 64 edges and must not check `r` after a shorter reset.
 
 **Pins while `reset` = 1** (*Decision*): `d_oe` = 0, `sync` = 0, `cm_rom` = 0, `cm_ram` = 4'b0000. Nothing else is compared while `reset` = 1. Comparison starts at the first A1 after `reset` falls.
 
@@ -124,7 +124,12 @@ The second word is `B` (8 bits). "Same page" means `pc[11:8]` of the address **a
 | 7R B | ISZ R, B | `R = R + 1`; if `R != 0`: `pc[7:0] = B` (same page) |
 
 ### 6.3 I/O and RAM group (OPR = 1110), 1 cycle
-All act on the chip, register and character selected by the last SRC and by `ram_bank`. M = the selected RAM character, S_n = status character n.
+All act on the chip, register and character selected by SRC, **as latched by each chip** (normative, per-chip model, see below), and by `ram_bank`.
+
+**Which SRC a chip uses (normative).** The 4004's `src_addr` is not what a RAM or ROM uses. Each chip keeps its own latch:
+- Each **4002** latches the 8-bit SRC address (high nibble at X2, low nibble at X3) **only if its CM-RAM line is 1 at X2 of that SRC**. RDM, WRM, ADM, SBM, RDn, WRn and WMP use that chip's latch, and act only if the chip's CM-RAM line is 1 at M2 and the latched chip select `[7:6]` equals its `CHIP`.
+- Each **4001** sees every SRC (`cm_rom` = 1 at X2 of every SRC) and latches the high nibble as its selection. WRR and RDR act on the 4001 whose `CHIP` equals that nibble.
+- Example: `DCL 0; SRC P0 (=X); DCL 1; SRC P1 (=Y); DCL 0; RDM` reads character X from the bank-0 RAM, because the bank-0 RAMs didn't see the second SRC. M = the selected RAM character, S_n = status character n.
 
 | Hex | Mnemonic | Effect |
 |-----|----------|--------|
@@ -174,6 +179,8 @@ All 8 rows confirmed against the truth table on manual p.36 (page image).
 ## 7. System: 4001 and 4002 (reduced detail)
 - `i4001` ROM: 256 × 8 contents from a `$readmemh` file, chip number 0–15 (strap), 4-bit I/O port configured as all-output or all-input per chip (metal-mask option, here a parameter `PORT_IN`). WRR to an input-configured port does nothing (manual p.34: "no operation is performed on I/O lines coded as inputs"). RDR from an output-configured port returns 0000 (*Decision*; on the real chip the mask chooses the value read back). The selected ROM drives `d_in` at X2 of RDR whatever its configuration. C9's random systems use one known configuration per chip, recorded in the test. It responds to A1–A3 with its chip number on A3 + `cm_rom`, and drives OPR/OPA at M1/M2. SRC's high nibble at X2 with `cm_rom` selects the chip for WRR/RDR.
 - `i4002` RAM: 4 registers × 16 data characters + 4 status characters, 4 bits each; 4-bit output port. Chip select = `src_addr[7:6]`, register = `src_addr[5:4]` (manual p.15), with the chip number set by a parameter `CHIP[1:0]` that the 4002 compares with `src_addr[7:6]`. On real chips it comes from the 4002-1/-2 metal option plus the P0 pin (manual p.21). That mapping is not modelled, because the scan's table is illegible and the behaviour at the bus is the same, character = `src_addr[3:0]`, bank = which `cm_ram` line it is on.
+- **State after reset (*Decision*).** Every 4001 and 4002 clears its SRC latch to 0x00 and its port latch to 0000. 4002 RAM contents (data and status characters) are 0 after reset, so no read is ever uninitialised (C8, C9). The real 4002 is dynamic and its contents after power-up are undefined, so this is ours, not Intel's.
+- **Several banks read at once (*Decision* C).** With DCL codes 011, 101, 110 or 111, a read (RDM, ADM, SBM, RD0–RD3) can make 4002s on two banks drive the bus at X2. This is undefined: `mcs4_system` raises `bus_conflict`, and no test may cause it. C9's random systems fit 4002s on **one bank only** (any bank, recorded per system). Writes to several banks at once are well defined: every selected RAM writes.
 - `mcs4_system`: one 4004, up to 16 4001s, up to 16 4002s (4 per bank × 4 banks). The default build for tests is 1 × 4001 per program page used, 4 × 4002 on bank 0.
 
 ## 8. Behaviours to test
