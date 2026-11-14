@@ -36,7 +36,7 @@ The real 40-pin package [check pinout] has a bidirectional 8-bit data bus. As fo
 | `int_req` | in | 1 | INT: interrupt request |
 | `inte` | out | 1 | INTE: interrupt enable flip-flop |
 
-**Status byte** (on `d_out` while `sync` = 1) [check bit order]: D0 INTA, D1 WO (active low), D2 STACK, D3 HLTA, D4 OUT, D5 M1, D6 INP, D7 MEMR.
+**Status byte** (on `d_out` while `sync` = 1, confirmed §10): D0 INTA, D1 WO (active low), D2 STACK, D3 HLTA, D4 OUT, D5 M1, D6 INP, D7 MEMR.
 
 ## 3. Programmer's model [check]
 | Name | Width | Reset value | Notes |
@@ -53,8 +53,8 @@ Memory: 64 KiB, byte addressed. I/O: 256 input and 256 output ports, the port nu
 ## 4. Machine cycle timing (normative once checked)
 To be written, at the same level as the 4004's §4: per machine-cycle type (instruction fetch, memory read, memory write, stack read, stack write, input, output, interrupt acknowledge, halt acknowledge, interrupt acknowledge while halted), and per T state, the values of `a`, `a_oe`, `d_out`, `d_oe`, `sync`, `dbin`, `wr_n`, `wait_o`, `hlda`. Instructions take 4, 5, 7, 10, 11, 13, 16 or 18 states [check: 5 for INX/DCX, MOV r,r; 18 for XTHL]. READY sampled in T2 [check], HOLD sampled in T2 [check], INT sampled at the end of the last state of each instruction [check].
 
-## 5. Reset [check]
-RESET held for at least 3 clock periods. Clears PC and INTE, and the instruction register. The other registers and flags are unaffected on the real part. *Decision:* tests must hold reset ≥ 3 clocks and must not read A, B–L, SP or F before writing them.
+## 5. Reset
+RESET held for at least 3 clock periods restores PC to 0; it "has no effect on status flags, or on any of the processor's working registers (accumulator, registers, or stack pointer)", which stay indeterminate until the program sets them (User's Manual p.2-13, confirmed §10). INTE and the instruction register on reset: [check]. *Decision:* tests hold reset ≥ 3 clocks and must not read A, B–L, SP or F before writing them; the RTL may clear them.
 
 ## 6. Instructions (normative once checked)
 244 opcodes [check] in the groups below, each to get an exact table like the 4004's §6, with S/Z/AC/P/CY effects per instruction:
@@ -65,7 +65,7 @@ RESET held for at least 3 clock periods. Clears PC and INTE, and the instruction
 - Stack, I/O, machine control: PUSH, POP (incl. PSW), XTHL, SPHL, IN, OUT, EI, DI, HLT, NOP.
 
 Known quirks to pin down exactly (each needs a source):
-- **AC after ANA/ANI**: set to the OR of bit 3 of the two operands on the 8080 [check]. This differs from the 8085.
+- **AC after ANA/ANI**: the User's Manual (p.4-8) only says the logical group affects Z, S, P, AC, CY "according to the standard rules" and that ANA clears CY; it gives **no AC rule** for AND. The commonly cited 8080 behaviour (AC = bit 3 of A OR bit 3 of the operand; the 8085 differs) needs a second primary source, e.g. Intel's *8080/8085 Assembly Language Programming Manual*, before it is normative. Until then this is an open item, not a fact.
 - **CY after SUB/CMP**: set on borrow (inverse of the 4004's SUB convention). This needs an explicit statement.
 - **DAA**: the exact two-step rule, including AC and CY in and out.
 - **Undocumented opcodes** (08, 10, 18, 20, 28, 30, 38 as NOP; CB as JMP; D9 as RET; DD, ED, FD as CALL) [check]. *Proposed decision*: specify them as the real part behaves if the source is solid, else "execute as documented NOP-like; tests must not depend on it", as the 4004's FE/FF.
@@ -91,4 +91,10 @@ Known quirks to pin down exactly (each needs a source):
 3. **Instruction-level comparison against an independent existing 8080 emulator** (Beru chooses, like MAME for the 4004).
 
 ## 10. Datasheet check
-Not started. Every [check] above gets a line here with the page it was confirmed on, as in the 4004's §10.
+Source read: Intel *8080 Microcomputer Systems User's Manual*, September 1975 (98-153B, scan with text layer), read 2026-11-14 by Igris. Page numbers are the manual's printed numbers.
+- [x] Status byte bit assignment: D0 INTA, D1 WO (active low: 0 = write/output), D2 STACK, D3 HLTA, D4 OUT, D5 M1, D6 INP, D7 MEMR (Table 2-1, p.2-6).
+- [x] Reset: ≥ 3 clock periods, PC to 0, no effect on flags, A, B–L or SP (p.2-13).
+- [ ] Reset effect on INTE and the instruction register.
+- [ ] AC after ANA/ANI: **not stated in this manual** (p.4-8 says "standard rules"). Needs the 8080/8085 Assembly Language Programming Manual or another primary source.
+- [ ] Pinout, pin polarities (WR active low), READY/HOLD/INT sampling points, instruction state counts, DAA rule, I/O port on both address halves.
+- [ ] Undocumented opcodes: not expected in Intel's manuals at all; needs a decision on sources (§6).
