@@ -31,7 +31,7 @@ We rebuild real chips in the order history built them. Each chip teaches the tea
 **The order of chips is a draft** until the operator confirms `docs/roadmap.md`. Do not start a chip that is not listed in the roadmap.
 - Candidates: `docs/chip-catalog.md`
 - Roadmap: `docs/roadmap.md` (draft)
-- **Current chip:** TODO
+- **Current chip:** Intel 4004 (Chip #1), in `TuriChips/chip-4004`. The 74181 dry run is released.
 
 **What "done" means for one chip:**
 - Verilog (or the stack the spec names) for the full chip, in simulation only.
@@ -40,7 +40,7 @@ We rebuild real chips in the order history built them. Each chip teaches the tea
 - A demo running on the simulated chip.
 - A public write-up as the chip repo's `README.md`. Once the chip is released, the chip's repo is made public.
 
-**Public output:** the lab website at TODO (e.g. `turichips.com` or `chips.turilabs.in`, domain not bought yet).
+**Public output:** the lab website at https://turichips.github.io (repo `TuriChips/turichips.github.io`; no custom domain yet).
 - The homepage reads "The world's first chip lab run by AI", with one card per chip below it.
 - Each card shows an image of the chip made by the team itself, ideally a render of our own layout. Clicking the card opens that chip's write-up.
 - The first card is the first chip we build.
@@ -56,10 +56,10 @@ Go from rebuilding the earliest chips to designing a modern chip with agents onl
 ### Q4 2026 (now → end of December)
 | # | Goal | Owner role | Due | Status |
 |---|------|------------|-----|--------|
-| 1 | Toolchain works: one command builds, simulates, tests and synthesizes | Infrastructure | TODO | not started |
+| 1 | Toolchain works: one command builds, simulates, tests and synthesizes | Infrastructure | TODO | done: `toolchain` v0.7, used by chip-74181 and chip-4004 |
 | 2 | Roadmap confirmed (draft exists in docs/roadmap.md) | Operator + Architect | TODO | draft |
-| 3 | 74181 dry run, then Chip #1 (Intel 4004) released end to end (spec → RTL → tests → synthesis → demo → write-up) | Everyone | TODO | not started |
-| 4 | Lab website live with chip #1's card | Software and Docs | TODO | not started |
+| 3 | 74181 dry run, then Chip #1 (Intel 4004) released end to end (spec → RTL → tests → synthesis → demo → write-up) | Everyone | TODO | 74181 released; 4004 in progress |
+| 4 | Lab website live with chip #1's card | Software and Docs | TODO | live with the 74181 card; 4004 card at release |
 
 ### Q1 2027
 TODO, set at the end of Q4. Rough intent: finish the early-CPU part of the ladder and start the retro machines track.
@@ -112,3 +112,7 @@ Append-only. Date, decision, why.
 - 2026-11-13: Agents work in shifts: a scheduler wakes them from GitHub events and a timer, so work continues overnight. Igris merges PRs that another role approved and CI passed; spec changes and changes to existing tests wait for the operator. Why: work shouldn't stall overnight waiting for merges, but the spec and the tests that judge the work stay under the operator's eye.
 - 2026-11-14: 74181 released (TuriChips/chip-74181#28), the Phase 0 dry run. First chip through the whole pipeline.
 - 2026-11-14: When a chip is done, its repo goes public and its README is the write-up itself. Why: the repo is the public record, so a visitor should land on the write-up and be able to check every claim against the code and logs.
+- 2026-11-14: One repo per chip, named `chip-<name>`, plus a shared public `toolchain` repo that each chip pins to a tag. Why: a toolchain fix can't silently break a finished chip, and each chip's history stays self-contained.
+- 2026-11-14: No branch protection. CI is a signal, not a gate: whoever merges checks that it is green.
+- 2026-11-14: The lab website is https://turichips.github.io, in a light, retro Windows XP style (our own art, no Microsoft assets). The 74181 dry run gets the first card. Chip write-ups are shown on the site, taken from each chip repo's README.
+- 2026-11-14: 4004 spec v1 signed off by Sai (turichips#16) and moved to `TuriChips/chip-4004`.
