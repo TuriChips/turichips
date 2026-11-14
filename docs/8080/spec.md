@@ -56,6 +56,10 @@ To be written, at the same level as the 4004's §4: per machine-cycle type (inst
 ## 5. Reset
 RESET held for at least 3 clock periods restores PC to 0; it "has no effect on status flags, or on any of the processor's working registers (accumulator, registers, or stack pointer)", which stay indeterminate until the program sets them (User's Manual p.2-13, confirmed §10). RESET also resets INTE and HLDA (p.5-14). The instruction register on reset: [check]. *Decision:* tests hold reset ≥ 3 clocks and must not read A, B–L, SP or F before writing them; the RTL may clear them.
 
+**Pins while `reset` = 1** (*Decision*, as for the 4004): `a_oe` = 0, `d_oe` = 0, `sync` = 0, `dbin` = 0, `wr_n` = 1, `wait_o` = 0, `hlda` = 0, `inte` = 0. Nothing else is compared while `reset` = 1. Comparison starts at the first T1 after `reset` falls, which is the M1 of an instruction fetch from 0000. Reset in the middle of an instruction or a hold abandons it: the M-cycle and T-state counters and the instruction register are cleared, so the first cycle after reset is always an M1 fetch [check against the real part; if the manual is silent, this stays a *Decision*].
+
+**Unreset registers in random tests** (*Decision*, Beru's option (b)): A, B–L, SP and F stay unreset, as on the real part. Every C8 program starts with a fixed preamble that writes all of them before anything reads them: `LXI SP,nnnn; LXI B; LXI D; LXI H; PUSH H; POP PSW; MVI A` (POP PSW sets F). The model starts comparing register-dependent results only after the preamble. The preamble's exact bytes go in `tests/random/` and are referenced here when written.
+
 ## 6. Instructions (normative once checked)
 244 opcodes [check] in the groups below, each to get an exact table like the 4004's §6, with S/Z/AC/P/CY effects per instruction:
 - Data transfer: MOV, MVI, LXI, LDA, STA, LHLD, SHLD, LDAX, STAX, XCHG.
@@ -64,14 +68,27 @@ RESET held for at least 3 clock periods restores PC to 0; it "has no effect on s
 - Branch: JMP, Jcc, CALL, Ccc, RET, Rcc, RST, PCHL.
 - Stack, I/O, machine control: PUSH, POP (incl. PSW), XTHL, SPHL, IN, OUT, EI, DI, HLT, NOP.
 
+Flag rules every opcode table row follows (to become per-opcode lines in the §6 tables):
+- P = 1 when the result has an even number of 1 bits. Z = result is 0. S = result bit 7.
+- INR/DCR: Z, S, P, AC from the result; **CY unchanged**.
+- DAD: **only CY** changes (carry out of bit 15).
+- CMP/CPI: flags exactly as SUB/SUI with the same operands; A unchanged. CY = 1 means borrow (A < operand, unsigned).
+- SUB/SBB/SUI/SBI: CY = 1 on borrow. AC for subtraction [check: the 8080 computes it from the two's-complement addition `A + ~op + 1`; pin down from a source].
+- Rotates (RLC, RRC, RAL, RAR): only CY changes.
+- INX/DCX, MOV, MVI, LXI, loads/stores, XCHG, XTHL, SPHL, PCHL: no flags.
+
 Known quirks to pin down exactly (each needs a source):
 - **AC after logical instructions** (confirmed §10): ANA/ANI set **AC = (bit 3 of A) OR (bit 3 of the operand)**, before the AND, and clear CY (8080/8085 Assembly Language Programming Manual p.1-11: "The 8080 logical AND instructions set the flag to reflect the logical OR of bit 3 of the values involved"; on the 8085 AND always sets AC, so the 8080 rule is the one we follow). ORA, XRA, XRI clear both CY and AC (same manual, ch.3), and ORI too (User's Manual p.4-9: "The CY and AC flags are cleared"). The 1975 User's Manual (p.4-8) only says "standard rules" for these, which is why the second source is needed.
 - **CY after SUB/CMP**: set on borrow (inverse of the 4004's SUB convention). This needs an explicit statement.
 - **DAA** (User's Manual p.4-8, ALP manual p.3-19; 4 states): step 1, if `A[3:0] > 9` or AC = 1, add 6 to A, and **AC = carry out of bit 3** of that addition, else AC = 0 [check: AC when step 1 doesn't add]. Step 2, if `A[7:4] > 9` (after step 1) or CY = 1, add 6 to `A[7:4]`. **CY = 1 if that addition carries out of bit 7** (the ALP example: 93+08 → 9B → A1 → 01, CY = AC = 1). *Decision* (not stated by either manual): CY = CY_in OR carry-out, so a CY that was already 1 stays 1. A set CY means the decimal result already exceeds 99. Z, S, P from the final A.
-- **Undocumented opcodes** (08, 10, 18, 20, 28, 30, 38 as NOP; CB as JMP; D9 as RET; DD, ED, FD as CALL) [check]. *Proposed decision*: specify them as the real part behaves if the source is solid, else "execute as documented NOP-like; tests must not depend on it", as the 4004's FE/FF.
+- **Undocumented opcodes** (*Decision*, 2026-11-14): the 12 bytes that Intel's manuals don't define (08, 10, 18, 20, 28, 30, 38, CB, D9, DD, ED, FD) are **not tested**, and C8's generator excludes them, as for the 4004's 01–0F/FE/FF. The RTL may implement the commonly reported behaviour (08–38 as NOP, CB as JMP, D9 as RET, DD/ED/FD as CALL). That isn't required, because we have no primary source for it. If a primary-quality source turns up before the RTL is written, this can be reopened by a spec PR.
 
 ## 7. System for tests (reduced detail)
 `i8080_system`: one `i8080`, 64 KiB RAM loaded from a `$readmemh` image, a status latch (what the 8228 does), and an I/O model for a console port, so CP/M-style test programs can print. The bus resolution and `bus_conflict` flag are the same idea as the 4004's `mcs4_system`.
+
+**Interrupt acknowledge in `i8080_system`** (*Decision*): during an INTA cycle (status D0 = 1) the system puts a single RST n opcode on the bus, with n (0–7) from a test input `int_vector[2:0]`. CALL via INTA is not used in this project. INT while halted: the halt is left through the INTA M1 cycle exactly as from a running instruction, timing per §4 when written.
+
+**Input stimulus rule** (*Decision*, the same idea as the 4004's TEST rule): tests change `ready`, `hold` and `int_req` only on the clock edge that **starts** a T1 or TW state, never mid-state. The exact sampling edges (READY at the end of T2/TW, HOLD at the end of T2 or in halt, INT at the end of the last state of each instruction and only if INTE = 1 at that edge) are [check] and get pinned in §4 with page references. The stimulus rule makes any edge within the state equivalent for a correct design.
 
 ## 8. Behaviours to test (draft)
 | ID | Behaviour |
@@ -107,4 +124,6 @@ Second source: Intel *8080/8085 Assembly Language Programming Manual* (9800301D,
 - [x] DAA steps (User's Manual p.4-8) and its flags: AC from step 1, CY from step 2's carry (ALP manual p.3-19 example). CY_in kept: *Decision*, not in either manual.
 - [x] State counts (instruction summary table): INX/DCX 5, DAD 10, SHLD/LHLD 16, CALL 17, Ccc 11/17, Rcc 5/11, XTHL 18, DAA 4. Remaining opcodes to transcribe into §6.
 - [ ] Exact READY sampling state, I/O port number on both address halves (p.5-14 only says A15–A0 "denotes the I/O device number for up to 256 input and 256 output devices").
-- [ ] Undocumented opcodes: not expected in Intel's manuals at all; needs a decision on sources (§6).
+- [x] Undocumented opcodes: decided not tested (§6), since neither Intel manual defines them.
+- [ ] Reset in mid-instruction / mid-hold and the instruction register (§5 *Decision* until a source says otherwise).
+- [ ] AC for SUB/SBB/CMP.
