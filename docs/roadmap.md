@@ -1,12 +1,12 @@
 # Roadmap
 
-Status: **draft.** Order and dates are proposals, to be confirmed by the manager. Chip details live in `docs/chip-catalog.md`.
+Status: **draft.** Order and dates are proposals, to be confirmed by the operator. Chip details live in `docs/chip-catalog.md`.
 
 The lab runs in two phases:
 1. **Phase 1: Historic rebuilds.** Rebuild real chips in the order history made them, to learn what each generation learned.
 2. **Phase 2: Our own designs, in families.** A block library, plus families of chips built from it, each with its own targets.
 
-Rule: a chip starts only when the one before it in the list is released, or the manager says otherwise.
+Rule: a chip starts only when the one before it in the list is released, or the operator says otherwise.
 
 ---
 
@@ -18,9 +18,9 @@ Rule: a chip starts only when the one before it in the list is released, or the 
 
 ## Phase 1: Historic rebuilds (Dec 2026 → ~mid 2027)
 
-Chips are built **in order of year**, across all four tracks (decided by the manager, 2026-11-13). When two chips share a year, the one a later chip depends on goes first. Years are to be checked against datasheets before each spec is written.
+Chips are built **in order of year**, across all four tracks (decided by the operator, 2026-11-13). When two chips share a year, the one a later chip depends on goes first. Years are to be checked against datasheets before each spec is written.
 
-No dates or deadlines for chips 1–4 (manager, 2026-11-13).
+No dates or deadlines for chips 1–4 (operator, 2026-11-13).
 
 | # | Chip | Year | Track | Notes |
 |---|------|------|-------|-------|
@@ -75,5 +75,5 @@ Final name TBD.
 - **Product Manager:** sets each family member's targets and decides what the next member adds.
 
 ## KPIs by phase
-- **Phase 1:** chips released, times agents asked the manager to step in, days from spec to release.
+- **Phase 1:** chips released, times agents asked the operator to step in, days from spec to release.
 - **Phase 2:** the same, plus the share of each new chip built from library blocks, and family targets met.

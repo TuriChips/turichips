@@ -4,17 +4,17 @@
   const W = 384, H = 216;          // low-res scene size, scaled up with crisp pixels
   const WALL = 44, CORR = 104;     // wall height; corridor row (person top y) between desk rows
   const SPEED = 30;                // px per second
-  const ORDER = ["vera", "theo", "mira", "quinn", "rook", "otto", "petra", "juno"];
+  const ORDER = ["igris", "zura", "ada", "titus", "beru", "tesla", "leo", "homer"];
 
   const LOOKS = {
-    vera:  { hair: "#2b1d14", skin: "#f1c27d", style: "bun" },
-    theo:  { hair: "#4a3222", skin: "#c68642", style: "short" },
-    mira:  { hair: "#141414", skin: "#e0ac69", style: "long" },
-    quinn: { hair: "#d4a017", skin: "#ffdbac", style: "short" },
-    rook:  { hair: "#c0392b", skin: "#f1c27d", style: "spiky" },
-    otto:  { hair: "#8f9aa0", skin: "#8d5524", style: "short" },
-    petra: { hair: "#6b4220", skin: "#ffdbac", style: "long" },
-    juno:  { hair: "#e84393", skin: "#c68642", style: "bun" },
+    igris:  { hair: "#2b1d14", skin: "#f1c27d", style: "short" },
+    zura:  { hair: "#4a3222", skin: "#c68642", style: "short" },
+    ada:  { hair: "#141414", skin: "#e0ac69", style: "long" },
+    titus: { hair: "#d4a017", skin: "#ffdbac", style: "short" },
+    beru:  { hair: "#c0392b", skin: "#f1c27d", style: "spiky" },
+    tesla:  { hair: "#8f9aa0", skin: "#8d5524", style: "short" },
+    leo: { hair: "#6b4220", skin: "#ffdbac", style: "short" },
+    homer:  { hair: "#d9d9d9", skin: "#c68642", style: "short" },
   };
 
   // 10x16 front-facing person. h hair, s skin, e eye, c shirt, d shirt shade, p pants, k shoes.
@@ -277,7 +277,7 @@
     const plant = (x, y) => () => outlined(x, y, 12, 17, () => drawPlant(x, y));
     items.push({ key: 205, draw: plant(276, 188) }, { key: 63, draw: plant(372, 46) }, { key: 63, draw: plant(268, 46) });
     for (const p of Object.values(people)) {
-      const a = meta.agents[p.id], look = LOOKS[p.id] || LOOKS.theo;
+      const a = meta.agents[p.id], look = LOOKS[p.id] || LOOKS.zura;
       const frame = Math.floor(t * 6);
       const typing = !!working[p.id] && isSeated(p) && frame % 2 === 0;
       items.push({ key: p.y + 16, draw: () => {

@@ -24,10 +24,10 @@ async def pick(channel: str, text: str, context: str = "") -> list[str]:
         f"You route messages in the #{channel} channel of TuriChips, a chip design lab staffed by AI agents.\n"
         f"Team:\n{roster}\n\n"
         + (f"Thread so far:\n{context}\n\n" if context else "")
-        + f"The manager, Sai, wrote:\n{text}\n\n"
+        + f"The operator, Sai, wrote:\n{text}\n\n"
         "Who should reply? Greetings or messages addressed to everyone or the team: all agents. "
         "A question about a specific area: only the agents who own it. If unclear: the architect.\n"
-        'Answer with JSON only, like {"agents": ["vera", "rook"]}.'
+        'Answer with JSON only, like {"agents": ["igris", "beru"]}.'
     )
     await wait_turn()
     proc = await asyncio.create_subprocess_exec(

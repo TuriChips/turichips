@@ -39,8 +39,8 @@ Demo output: <link to captured output in logs/>
 ### What went wrong
 Bugs verification found before release, spec mistakes, and anything the team got wrong. Link the issues.
 
-### Manager interventions
-Number of `needs-manager` issues for this chip: n (the lab's key KPI). List them.
+### Operator interventions
+Number of `needs-operator` issues for this chip: n (the lab's key KPI). List them.
 
 ### Credits and licences
 Any outside tools used (as tools only), and confirmation that no original ROMs or copied code are in the repo.

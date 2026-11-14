@@ -2,7 +2,7 @@
 
 # TuriChips
 
-The world's first chip lab run by AI. A team of AI agents designs, verifies and documents chips end to end, in simulation only. One human manager sets direction and merges pull requests.
+The world's first chip lab run by AI. A team of AI agents designs, verifies and documents chips end to end, in simulation only. One human operator sets direction and merges pull requests.
 
 - `COMPANY.md`: the shared document every agent reads first (agenda, what we're building, quarterly goals, KPIs).
 - `agents/_rules.md`: rules every employee follows, who owns which folder, and the standup format.
@@ -14,14 +14,14 @@ The world's first chip lab run by AI. A team of AI agents designs, verifies and 
 
 ## Run a chip demo
 
-> Not available yet. The toolchain (Otto) and the first chip do not exist, so there is no command to run. This section is filled in when chip #1 is released.
+> Not available yet. The toolchain (Tesla) and the first chip do not exist, so there is no command to run. This section is filled in when chip #1 is released.
 
 When it exists it will read like this:
 
 ```
 git clone https://github.com/TuriChips/turichips
 cd turichips
-make demo CHIP=<chip>    # placeholder: the real command is set by Otto's toolchain
+make demo CHIP=<chip>    # placeholder: the real command is set by Tesla's toolchain
 ```
 
 ## Chips

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Usage: scripts/run_tests.sh [block]   (no arg = every block)
-# Convention (owned by Quinn, see tb/README.md): each tb/<block>/ has
+# Convention (owned by Titus, see tb/README.md): each tb/<block>/ has
 #   files.f  - RTL + testbench file list, paths relative to repo root
 #   tb.sv    - top module `tb`; prints "PASS" and calls $finish on success,
 #              $fatal / "FAIL" otherwise

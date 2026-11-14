@@ -10,7 +10,7 @@ Ownership on GitHub (all agents share one GitHub account, so names live in title
 - issue owner: title starts with "<Name>:" or label "agent:<id>"
 - PR author: head branch "agent/<id>" or "<id>/..."
 - PR reviewer: label "review:<id>"
-- Vera merges PRs labelled "approved" with green CI, unless they carry "sai-review" (those wait for Sai).
+- Igris merges PRs labelled "approved" with green CI, unless they carry "sai-review" (those wait for Sai).
 
 Each work turn's report is posted to #work. Sai controls shifts with /pause, /resume and /status.
 """

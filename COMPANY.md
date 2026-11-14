@@ -1,11 +1,11 @@
 # TuriChips: Company Document
 
-_Last updated: 2026-11-13 · Owner: Sai (manager)_
+_Last updated: 2026-11-13 · Owner: Sai (operator)_
 
-> Every agent reads this first, every session. If something here conflicts with your job description, this document wins. Ask the manager.
+> Every agent reads this first, every session. If something here conflicts with your job description, this document wins. Ask the operator.
 
 ## 1. Who we are
-TuriChips is the world's first chip lab run by AI. A team of AI agents designs, verifies and documents chips end to end. One human manager sets direction and signs off on spec and test changes. Everything else is done by the agents.
+TuriChips is the world's first chip lab run by AI. A team of AI agents designs, verifies and documents chips end to end. One human operator sets direction and signs off on spec and test changes. Everything else is done by the agents.
 
 We only design. Everything happens in software: RTL, simulation, testbenches, synthesis and open-source layout. We never deal with manufacturing.
 
@@ -28,7 +28,7 @@ We rebuild real chips in the order history built them. Each chip teaches the tea
   - **M family:** ML accelerators. Systolic arrays at growing sizes, with R1 as the control core.
   - New roles for Phase 2: Platform Architect (owns the block library) and Product Manager (sets family targets).
 
-**The order of chips is a draft** until the manager confirms `docs/roadmap.md`. Do not start a chip that is not listed in the roadmap.
+**The order of chips is a draft** until the operator confirms `docs/roadmap.md`. Do not start a chip that is not listed in the roadmap.
 - Candidates: `docs/chip-catalog.md`
 - Roadmap: `docs/roadmap.md` (draft)
 - **Current chip:** TODO
@@ -57,7 +57,7 @@ Go from rebuilding the earliest chips to designing a modern chip with agents onl
 | # | Goal | Owner role | Due | Status |
 |---|------|------------|-----|--------|
 | 1 | Toolchain works: one command builds, simulates, tests and synthesizes | Infrastructure | TODO | not started |
-| 2 | Roadmap confirmed (draft exists in docs/roadmap.md) | Manager + Architect | TODO | draft |
+| 2 | Roadmap confirmed (draft exists in docs/roadmap.md) | Operator + Architect | TODO | draft |
 | 3 | 74181 dry run, then Chip #1 (Intel 4004) released end to end (spec → RTL → tests → synthesis → demo → write-up) | Everyone | TODO | not started |
 | 4 | Lab website live with chip #1's card | Software and Docs | TODO | not started |
 
@@ -74,11 +74,11 @@ Every number needs a source: a log, a report or a script.
 | Acceptance tests passing (current chip) | all | n/a | logs/ |
 | Random-test differences vs reference model | 0 | n/a | tests/random/ |
 | Bugs found by verification before release | tracked | n/a | GitHub issues |
-| **Times agents asked the manager to step in, per chip** | trending to 0 | n/a | issues labelled `needs-manager` |
+| **Times agents asked the operator to step in, per chip** | trending to 0 | n/a | issues labelled `needs-operator` |
 | Days from spec to release, per chip | trending down | n/a | issues + release dates |
 | Share of each new chip built from library blocks (Phase 2) | rising | n/a | block library manifest |
 
-Times agents asked the manager to step in is the number that measures the mission. If it doesn't go down from one chip to the next, the lab is not learning.
+Times agents asked the operator to step in is the number that measures the mission. If it doesn't go down from one chip to the next, the lab is not learning.
 
 ## 6. This week's focus
 Week of 2026-11-13: set up the repo, the toolchain and the agent start-up scripts. Agree the roadmap.
@@ -86,15 +86,15 @@ Week of 2026-11-13: set up the repo, the toolchain and the agent start-up script
 ## 7. Team
 | Name | Role | Agent file | Owns | Model |
 |------|------|------------|------|-------|
-| Sai | Manager (human) | none | direction, this document, spec and test sign-off | human |
-| Vera | Architect | agents/architect.md | docs/spec.md, docs/blocks.md | Opus 5.5 |
-| Theo | Designer A (control side) | agents/designer-a.md | rtl/control/, rtl/top.v | Sonnet 5.5 |
-| Mira | Designer B (data side) | agents/designer-b.md | rtl/datapath/ | Sonnet 5.5 |
-| Quinn | Verification Engineer A (test builder) | agents/verification-a.md | tb/, tests/ | Sonnet 5.5 |
-| Rook | Verification Engineer B (breaker) | agents/verification-b.md | ref/, tests/random/ | Opus 5.5 |
-| Otto | Infrastructure Engineer | agents/infrastructure.md | scripts/, Makefile, .github/ | Sonnet 5.5 |
-| Petra | Physical Design Engineer | agents/physical-design.md | synth/ | Sonnet 5.5 |
-| Juno | Software and Docs Engineer | agents/software-docs.md | sw/, README.md, docs/release.md | Sonnet 5.5 |
+| Sai | Operator (human) | none | direction, this document, spec and test sign-off | human |
+| Igris | Architect | agents/architect.md | docs/spec.md, docs/blocks.md | Opus 5.5 |
+| Zura | Designer A (control side) | agents/designer-a.md | rtl/control/, rtl/top.v | Sonnet 5.5 |
+| Ada | Designer B (data side) | agents/designer-b.md | rtl/datapath/ | Sonnet 5.5 |
+| Titus | Verification Engineer A (test builder) | agents/verification-a.md | tb/, tests/ | Sonnet 5.5 |
+| Beru | Verification Engineer B (breaker) | agents/verification-b.md | ref/, tests/random/ | Opus 5.5 |
+| Tesla | Infrastructure Engineer | agents/infrastructure.md | scripts/, Makefile, .github/ | Sonnet 5.5 |
+| Leo | Physical Design Engineer | agents/physical-design.md | synth/ | Sonnet 5.5 |
+| Homer | Software and Docs Engineer | agents/software-docs.md | sw/, README.md, docs/release.md | Sonnet 5.5 |
 
 ## 8. Meetings and reporting
 - **Standup:** TODO (days and time). Each agent appends to `logs/standup.md` (format in `agents/_rules.md`).
@@ -104,9 +104,9 @@ Week of 2026-11-13: set up the repo, the toolchain and the agent start-up script
 Append-only. Date, decision, why.
 - 2026-11-13: Company founded as TuriChips. Eight roles defined.
 - 2026-11-13: Finish lines set: main goal is a RISC-V CPU, bigger vision is an ML accelerator. Verilator for simulation, no FPGA.
-- 2026-11-13: Agents named, each with a personality: Vera, Theo, Mira, Quinn, Rook, Otto, Petra, Juno.
-- 2026-11-13: Each pair of agents runs on its own Claude Team seat: seat1 Vera+Otto, seat2 Rook+Juno, seat3 Theo+Petra, seat4 Mira+Quinn (the Opus agents and the heavy builders are spread out). Confirmed with Anthropic that this is fine.
-- 2026-11-13: Models pinned per agent: Opus 5.5 for Vera (spec errors spread to everyone) and Rook (subtle bugs), Sonnet 5.5 for the rest.
+- 2026-11-13: Agents named, each with a personality: Igris, Zura, Ada, Titus, Beru, Tesla, Leo, Homer.
+- 2026-11-13: Each pair of agents runs on its own Claude Team seat: seat1 Igris+Tesla, seat2 Beru+Homer, seat3 Zura+Leo, seat4 Ada+Titus (the Opus agents and the heavy builders are spread out). Confirmed with Anthropic that this is fine.
+- 2026-11-13: Models pinned per agent: Opus 5.5 for Igris (spec errors spread to everyone) and Beru (subtle bugs), Sonnet 5.5 for the rest.
 - 2026-11-13: Two phases: historic rebuilds first, then our own designs in families (R family = RISC-V, M family = ML) built from a shared block library.
 - 2026-11-13: Simulation only, no manufacturing. Chips are rebuilt in historical order across four tracks: CPUs → retro machines → graphics → ML.
-- 2026-11-13: Agents work in shifts: a scheduler wakes them from GitHub events and a timer, so work continues overnight. Vera merges PRs that another role approved and CI passed; spec changes and changes to existing tests wait for the manager. Why: work shouldn't stall overnight waiting for merges, but the spec and the tests that judge the work stay under the manager's eye.
+- 2026-11-13: Agents work in shifts: a scheduler wakes them from GitHub events and a timer, so work continues overnight. Igris merges PRs that another role approved and CI passed; spec changes and changes to existing tests wait for the operator. Why: work shouldn't stall overnight waiting for merges, but the spec and the tests that judge the work stay under the operator's eye.

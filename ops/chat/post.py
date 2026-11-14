@@ -1,6 +1,6 @@
 """Post into the chat from scripts (e.g. scheduled standups).
 
-    python post.py standup vera "Passed: ..."
+    python post.py standup igris "Passed: ..."
 """
 import sys
 
