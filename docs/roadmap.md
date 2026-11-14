@@ -14,7 +14,7 @@ Rule: a chip starts only when the one before it in the list is released, or the 
 | # | Item | Why |
 |---|------|-----|
 | 0.1 | Toolchain: Verilator, Yosys, OpenROAD, one-command build and test, CI | Everything else depends on it. |
-| 0.2 | **74181 ALU** | A dry run of the full pipeline (spec → RTL → tests → synthesis → write-up) on a tiny chip. |
+| 0.2 | **74181 ALU** | A dry run of the full pipeline (spec → RTL → tests → synthesis → write-up) on a tiny chip. **First card on the website** (operator, 2026-11-14). |
 
 ## Phase 1: Historic rebuilds (Dec 2026 → ~mid 2027)
 
@@ -24,7 +24,7 @@ No dates or deadlines for chips 1–4 (operator, 2026-11-13).
 
 | # | Chip | Year | Track | Notes |
 |---|------|------|-------|-------|
-| 1 | Intel 4004 | 1971 | CPU | **First card on the website.** |
+| 1 | Intel 4004 | 1971 | CPU | First Phase 1 card on the website, after the 74181. |
 | 2 | Intel 8080 | 1974 | CPU | |
 | 3 | MOS 6502 | 1975 | CPU | Reused by the Atari 2600 and NES. |
 | 4 | Zilog Z80 | 1976 | CPU | Z80-like ancestry for the Game Boy's SM83 (not the same core). |
