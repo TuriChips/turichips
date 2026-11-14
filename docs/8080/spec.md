@@ -53,6 +53,18 @@ Memory: 64 KiB, byte addressed. I/O: 256 input and 256 output ports, the port nu
 ## 4. Machine cycle timing (normative once checked)
 To be written, at the same level as the 4004's §4: per machine-cycle type (instruction fetch, memory read, memory write, stack read, stack write, input, output, interrupt acknowledge, halt acknowledge, interrupt acknowledge while halted), and per T state, the values of `a`, `a_oe`, `d_out`, `d_oe`, `sync`, `dbin`, `wr_n`, `wait_o`, `hlda`. Instructions take 4, 5, 7, 10, 11, 13, 16, 17 or 18 states. From the User's Manual instruction summary: INX/DCX 5, DAD 10, SHLD/LHLD 16, CALL 17, Ccc 11/17, Rcc 5/11, XTHL 18, DAA 4 (confirmed §10). The full per-opcode table gets transcribed from that summary. READY sampled in T2 [check], HOLD sampled in T2 [check], INT sampled at the end of the last state of each instruction [check].
 
+
+**Confirmed so far (User's Manual §2, pp.2-6 to 2-10), in our one-clock-per-state model:**
+
+| Cycle kind | T1 | T2 | TW (while READY = 0) | T3 |
+|------------|----|----|----------------------|----|
+| all | `sync` = 1, `d_oe` = 1, `d_out` = status byte (§2), `a` = address, stable from T1 (p.2-6) | `sync` = 0 | `wait_o` = 1 | |
+| read (fetch, memory read, stack read, input) | as above | `d_oe` = 0 (φ2 in T2 clears the status off the data lines, p.2-8); `dbin` = 1 [check exact start] | `d_oe` = 0, `dbin` = 1 | `d_oe` = 0; input data **sampled in T3** (p.2-8) |
+| write (memory write, stack write, output) | as above | `d_oe` = 1, `d_out` = **output data**, replacing status at φ2 of T2 (p.2-9) | `d_oe` = 1, data held; `wr_n` = 0 | `d_oe` = 1, data held; `wr_n` = 0 (WR falls at the first φ1 after T2 and rises at the start of the state after T3, p.2-10) |
+
+- IN/OUT: the 8-bit port number is duplicated on both halves of `a`, so `a` = `{port, port}` (ALP manual p.1-15: "IN 5 latches … 0000 0101 0000 0101"; p.3-42).
+- READY and HOLD must be stable during T2 or TW (User's Manual data sheet note 11/12, p.5-17), which supports the stimulus rule in §7.
+- Still to fill in: T4/T5 of M1, `a` during T4/T5 (held or not compared), `dbin` exact start, HLDA/`a_oe` timing per state, interrupt-acknowledge and halt cycles, and an explicit "not compared" for every cell where `d_oe` = 0 or `a_oe` = 0.
 ## 5. Reset
 RESET held for at least 3 clock periods restores PC to 0; it "has no effect on status flags, or on any of the processor's working registers (accumulator, registers, or stack pointer)", which stay indeterminate until the program sets them (User's Manual p.2-13, confirmed §10). RESET also resets INTE and HLDA (p.5-14). The instruction register on reset: [check]. *Decision:* tests hold reset ≥ 3 clocks and must not read A, B–L, SP or F before writing them; the RTL may clear them.
 
@@ -123,7 +135,9 @@ Second source: Intel *8080/8085 Assembly Language Programming Manual* (9800301D,
 - [x] ORI: CY and AC cleared (User's Manual p.4-9).
 - [x] DAA steps (User's Manual p.4-8) and its flags: AC from step 1, CY from step 2's carry (ALP manual p.3-19 example). CY_in kept: *Decision*, not in either manual.
 - [x] State counts (instruction summary table): INX/DCX 5, DAD 10, SHLD/LHLD 16, CALL 17, Ccc 11/17, Rcc 5/11, XTHL 18, DAA 4. Remaining opcodes to transcribe into §6.
-- [ ] Exact READY sampling state, I/O port number on both address halves (p.5-14 only says A15–A0 "denotes the I/O device number for up to 256 input and 256 output devices").
+- [x] I/O port number on both address halves (ALP p.1-15, p.3-42).
+- [x] SYNC marks T1 only, with status on D0–D7 in the same interval (p.2-6). Output data replaces status at T2 and is held to the end of the cycle; WR is low from the state after T2 through T3 (p.2-9, 2-10). Input data sampled in T3 (p.2-8).
+- [ ] Exact READY sampling state (data sheet note 11: stable during T2 or TW, p.5-17) (p.5-14 only says A15–A0 "denotes the I/O device number for up to 256 input and 256 output devices").
 - [x] Undocumented opcodes: decided not tested (§6), since neither Intel manual defines them.
 - [ ] Reset in mid-instruction / mid-hold and the instruction register (§5 *Decision* until a source says otherwise).
 - [ ] AC for SUB/SBB/CMP.
