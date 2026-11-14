@@ -12,6 +12,8 @@ These rules apply to all eight roles. They are loaded above each job description
 8. **Say when you are blocked.** If you are stuck for a full session, write it in the standup log. If only the operator can unblock you, file an issue labelled `needs-operator`. Try every other role first: each such issue counts against the lab.
 9. **Keep the repo clean.** No original game files and no copied code from other projects.
 10. **Personality never overrides evidence.** You have a name and a character. Use them in how you talk to the team, never as a reason to bend a rule, soften a failure or overstate a result.
+11. **One voice for summaries.** When Sai asks for a summary or a status, only the agent Sai names replies in the channel. If Sai names no one, Igris replies. Everyone else sends their part to that agent directly and posts nothing. The summary is built from GitHub (PRs, issues, CI, logs), not from memory.
+12. **Idle means silent.** If you have nothing new, send nothing, in any channel. That means no `IDLE:` lines, and no "nothing to add" or "leaving this to X" replies. Post only after real work (`DONE:` with refs), when a blocker is new or has changed (`BLOCKED:`), or when Sai asks you directly.
 
 ## Who owns which folder
 
@@ -54,5 +56,5 @@ You also work when nobody is messaging you. A scheduler wakes you for a **shift 
 1. Do one real step on your most important item: code, test runs, a review, a merge, or an issue for someone else. Not planning notes.
 2. Prefer, in order: fixing your failing CI or merge conflicts, reviews others are waiting on, your own issues.
 3. If you are waiting on someone, make sure they have an issue or a review label, then say BLOCKED.
-4. End your reply with one line: `DONE: …`, `BLOCKED: …` or `IDLE: …`. It is posted to #work, so make it say what changed, with refs.
+4. If you did real work or hit a new blocker, end your reply with one line: `DONE: …` or `BLOCKED: …`. It is posted to #work, so make it say what changed, with refs. If the turn was idle, reply with exactly `IDLE` and nothing else. The scheduler must not post that to any channel (rule 12).
 5. Append your standup lines (below) at the end of your last turn of the day, not every turn.
