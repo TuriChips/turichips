@@ -1,6 +1,6 @@
 # Spec: Intel 4004 (Chip #1), DRAFT
 
-Status: **DRAFT v0, not normative.** Written by Vera on 2026-11-13 so the spec is reviewed by the time the 74181 is released. Nobody builds from this until (a) the 74181 is released (roadmap rule), (b) every box in §10 is ticked against the datasheet, and (c) Sai signs it off. It then moves to `TuriChips/chip-4004`, the same way the 74181 spec did (#6).
+Status: **DRAFT v0, not normative.** Written by Igris on 2026-11-13 so the spec is reviewed by the time the 74181 is released. Nobody builds from this until (a) the 74181 is released (roadmap rule), (b) every box in §10 is ticked against the datasheet, and (c) Sai signs it off. It then moves to `TuriChips/chip-4004`, the same way the 74181 spec did (#6).
 
 Sources, to be checked in §10:
 - Intel, *MCS-4 Micro Computer Set Users Manual*, Rev. 4, February 1973 (instruction set, timing, 4001/4002).
@@ -187,15 +187,15 @@ All 8 rows confirmed against the truth table on manual p.36 (page image).
 | C6 | DCL: all 8 bank codes give the §6.5 lines on SRC and on I/O instructions |
 | C7 | Reset: after reset, fetch starts at 0x000 with `acc` = `cy` = 0 |
 | C8 | No X or Z on any output for fully driven inputs (4-state run, as for the 74181) |
-| C9 | Random programs: the RTL and Rook's reference model agree on every pin, every clock, for N random programs (N set by Rook, at least 10,000 programs × 1,000 cycles) |
+| C9 | Random programs: the RTL and Beru's reference model agree on every pin, every clock, for N random programs (N set by Beru, at least 10,000 programs × 1,000 cycles) |
 
 ## 9. Acceptance tests (software not written by this team)
 1. **Busicom 141-PF calculator firmware**, the program the 4004 was built for, running on `mcs4_system` with a model of the printer/keyboard I/O: key in sums and check the printed results. Source: the reconstructed and commented listing published by the 4004 restoration project (Tim McNerney et al.). Checked 2026-11-14: 4004.com says works on the site are under **CC BY-NC-SA 3.0** "unless noted". The listing itself doesn't carry its own terms on the page we found. Because of rule 9 (no copied code in the repo), the ROM image is **never committed**: the test downloads it at run time from the project's site, and the release credits the Silvermans and Lajos Kintli. **Open for Sai at sign-off:** whether non-commercial-licensed material may be used in our tests at all. If not, drop this test and rely on 2 and 3, and say so in the release.
 2. **Example programs from the MCS-4 Users Manual** (e.g. multi-digit decimal addition, subtraction), typed in from the manual. Expected results come from the manual's text.
-3. **Instruction-level comparison against an independent, existing 4004 emulator** (to be chosen by Rook; it must not be written by this team), run on the same random programs as C9.
+3. **Instruction-level comparison against an independent, existing 4004 emulator** (to be chosen by Beru; it must not be written by this team), run on the same random programs as C9.
 
 ## 10. Datasheet check
-Source read: Intel *MCS-4 Micro Computer Set Users Manual* (Feb 1973 scan, OCR text layer), on 2026-11-14 by Vera. Page numbers are the manual's printed page numbers. The OCR is noisy; where it was unreadable, the page image was read instead, and the item says so.
+Source read: Intel *MCS-4 Micro Computer Set Users Manual* (Feb 1973 scan, OCR text layer), on 2026-11-14 by Igris. Page numbers are the manual's printed page numbers. The OCR is noisy; where it was unreadable, the page image was read instead, and the item says so.
 
 - [x] Negative logic in the original (p.6), so our positive-logic choice is a deliberate deviation (§1)
 - [x] 8 clock periods per instruction cycle, 10.8 µs (p.6, p.28)
