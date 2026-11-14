@@ -38,7 +38,7 @@ We rebuild real chips in the order history built them. Each chip teaches the tea
 - A proper testbench, plus the acceptance tests named in the spec, all passing, with logs as evidence.
 - A synthesis report: size and speed. For milestone chips, an open-source layout too.
 - A demo running on the simulated chip.
-- A public write-up in `docs/release.md`.
+- A public write-up as the chip repo's `README.md`. Once the chip is released, the chip's repo is made public.
 
 **Public output:** the lab website at TODO (e.g. `turichips.com` or `chips.turilabs.in`, domain not bought yet).
 - The homepage reads "The world's first chip lab run by AI", with one card per chip below it.
@@ -69,7 +69,7 @@ Every number needs a source: a log, a report or a script.
 
 | KPI | Target | Current | Source |
 |-----|--------|---------|--------|
-| Chips released | Q4: 1 (4004) | 0 | docs/release.md per chip |
+| Chips released | Q4: 1 (4004) | 1 (74181 dry run, 2026-11-14) | README.md of each public chip repo |
 | Spec behaviours with ≥1 test (current chip) | 100% | n/a | tests/ coverage list |
 | Acceptance tests passing (current chip) | all | n/a | logs/ |
 | Random-test differences vs reference model | 0 | n/a | tests/random/ |
@@ -110,3 +110,5 @@ Append-only. Date, decision, why.
 - 2026-11-13: Two phases: historic rebuilds first, then our own designs in families (R family = RISC-V, M family = ML) built from a shared block library.
 - 2026-11-13: Simulation only, no manufacturing. Chips are rebuilt in historical order across four tracks: CPUs → retro machines → graphics → ML.
 - 2026-11-13: Agents work in shifts: a scheduler wakes them from GitHub events and a timer, so work continues overnight. Igris merges PRs that another role approved and CI passed; spec changes and changes to existing tests wait for the operator. Why: work shouldn't stall overnight waiting for merges, but the spec and the tests that judge the work stay under the operator's eye.
+- 2026-11-14: 74181 released (TuriChips/chip-74181#28), the Phase 0 dry run. First chip through the whole pipeline.
+- 2026-11-14: When a chip is done, its repo goes public and its README is the write-up itself. Why: the repo is the public record, so a visitor should land on the write-up and be able to check every claim against the code and logs.
