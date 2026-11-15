@@ -110,7 +110,7 @@ RESET held for at least 3 clock periods restores PC to 0; it "has no effect on s
 **Unreset registers in random tests** (*Decision*, Beru's option (b)): A, B–L, SP and F stay unreset, as on the real part. Every C8 program starts with a fixed preamble that writes all of them before anything reads them: `LXI SP,nnnn; LXI B; LXI D; LXI H; PUSH H; POP PSW; MVI A` (POP PSW sets F). The model starts comparing register-dependent results only after the preamble. The preamble's exact bytes go in `tests/random/` and are referenced here when written.
 
 ## 6. Instructions (normative once checked)
-244 opcodes [check] in the groups below, each to get an exact table like the 4004's §6, with S/Z/AC/P/CY effects per instruction:
+244 documented opcodes (User's Manual p.4-15 summary, counted from the page image; the other 12 bytes are the undocumented ones in the decision below) in the groups below, each to get an exact table like the 4004's §6, with S/Z/AC/P/CY effects per instruction:
 - Data transfer: MOV, MVI, LXI, LDA, STA, LHLD, SHLD, LDAX, STAX, XCHG.
 - Arithmetic: ADD, ADC, SUB, SBB, ADI, ACI, SUI, SBI, INR, DCR, INX, DCX, DAD, DAA.
 - Logical: ANA, XRA, ORA, CMP, ANI, XRI, ORI, CPI, RLC, RRC, RAL, RAR, CMA, CMC, STC.
@@ -182,6 +182,7 @@ Second source: Intel *8080/8085 Assembly Language Programming Manual* (9800301D,
 - [x] `a` held through T4 of M1; in TWH WAIT = 1, DBIN = 0, buses dashed (Figure 2-11, p.2-14, page image rendered with poppler, toolchain#35).
 - [x] Halt flow (Figure 2-12, p.2-14) matches the three exits in §4. (p.5-14 only says A15–A0 "denotes the I/O device number for up to 256 input and 256 output devices").
 - [x] Undocumented opcodes: decided not tested (§6), since neither Intel manual defines them.
+- [x] Opcode count: 244 documented in the instruction summary (p.4-15, page image): MOV/HLT 64, MVI 8, INR 8, DCR 8, ALU reg/mem 64, ALU immediate 8, rotates 4, branches 35, IN/OUT 2, LXI/PUSH/POP 12, STA/LDA/XCHG/XTHL/SPHL/PCHL 6, DAD/STAX/LDAX/INX/DCX 16, CMA/STC/CMC/DAA/SHLD/LHLD/EI/DI/NOP 9. None of 08, 10, 18, 20, 28, 30, 38, CB, D9, DD, ED, FD appears.
 - [ ] Reset in mid-instruction / mid-hold and the instruction register (§5 *Decision* until a source says otherwise).
 - [x] SUB/SUI flags: CY = complement of the carry out of `A + ~op + 1`, AC = carry out of bit 3 of that addition, not complemented (ALP p.3-64, page image: SUB A with 3E → CY 0, S 0, Z 1, P 1, AC 1). CMP/CPI: same flags as SUB, A unchanged.
 - [x] SBB/SBI: example A=4, B=2, CY=1 → 1, CY 0, AC 1 (ALP p.3-57, page image) matches `A + ~op + NOT CY`. The op = FF, CY = 1 edge is a *Decision* (§6).
