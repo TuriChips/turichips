@@ -29,7 +29,7 @@ The real 40-pin package (pinout in §10) has a bidirectional 8-bit data bus. As 
 | `sync` | out | 1 | SYNC: high in T1 of every machine cycle; the status byte is on D7–D0 |
 | `dbin` | out | 1 | DBIN: CPU is reading the data bus (T2, T3 of read cycles) |
 | `wr_n` | out | 1 | WR (active low): data on the bus is valid for memory or I/O write |
-| `ready` | in | 1 | READY: while low after an address is sent, the CPU stays in WAIT (TW) states (p.5-14). Exact sampling state [check] |
+| `ready` | in | 1 | READY: while low after an address is sent, the CPU stays in WAIT (TW) states (p.5-14). Sampled in T2 and each TW (Table 2-2, p.2-10) |
 | `wait_o` | out | 1 | WAIT: CPU is in a wait state |
 | `hold` | in | 1 | HOLD: request to float the buses. Recognised only in HALT, or in T2/TW with READY active (p.5-14) |
 | `hlda` | out | 1 | HLDA: hold acknowledged. Starts at T3 of a memory-read or input cycle, or the clock period after T3 of a write or output cycle (p.5-14) |
@@ -38,21 +38,53 @@ The real 40-pin package (pinout in §10) has a bidirectional 8-bit data bus. As 
 
 **Status byte** (on `d_out` while `sync` = 1, confirmed §10): D0 INTA, D1 WO (active low), D2 STACK, D3 HLTA, D4 OUT, D5 M1, D6 INP, D7 MEMR.
 
-## 3. Programmer's model [check]
+## 3. Programmer's model
 | Name | Width | Reset value | Notes |
 |------|-------|-------------|-------|
 | `A` | 8 | not reset (*Decision*: tests must not depend on it; the RTL may clear it) | Accumulator |
 | `B C D E H L` | 8 each | not reset (same *Decision*) | Pairs BC, DE, HL (`H`, `B`, `D` high) |
 | `SP` | 16 | not reset (same *Decision*) | Stack pointer |
 | `PC` | 16 | 0 | Program counter |
-| `F` | 8 | not reset | Flags `S Z 0 AC 0 P 1 CY` from bit 7 to bit 0, as pushed by PUSH PSW (bits 5 and 3 = 0, bit 1 = 1) |
+| `F` | 8 | not reset | Flags `S Z 0 AC 0 P 1 CY` from bit 7 to bit 0, as pushed by PUSH PSW: bit 0 CY, 1 = 1, 2 P, 3 = 0, 4 AC, 5 = 0, 6 Z, 7 S (User's Manual p.4-13). POP PSW loads only CY, P, AC, Z, S from those bits |
 | `INTE` | 1 | 0 | Interrupt enable |
 
-Memory: 64 KiB, byte addressed. I/O: 256 input and 256 output ports, the port number is put on both halves of the address bus [check].
+Memory: 64 KiB, byte addressed. I/O: 256 input and 256 output ports, the port number is put on both halves of the address bus (ALP p.1-15).
 
-## 4. Machine cycle timing (normative once checked)
-To be written, at the same level as the 4004's §4: per machine-cycle type (instruction fetch, memory read, memory write, stack read, stack write, input, output, interrupt acknowledge, halt acknowledge, interrupt acknowledge while halted), and per T state, the values of `a`, `a_oe`, `d_out`, `d_oe`, `sync`, `dbin`, `wr_n`, `wait_o`, `hlda`. Instructions take 4, 5, 7, 10, 11, 13, 16, 17 or 18 states. From the User's Manual instruction summary: INX/DCX 5, DAD 10, SHLD/LHLD 16, CALL 17, Ccc 11/17, Rcc 5/11, XTHL 18, DAA 4 (confirmed §10). The full per-opcode table gets transcribed from that summary. READY sampled in T2 [check], HOLD sampled in T2 [check], INT sampled at the end of the last state of each instruction [check].
+## 4. Machine cycle timing (normative once signed off)
+Ten machine-cycle types (User's Manual p.2-5). Instructions take 4, 5, 7, 10, 11, 13, 16, 17 or 18 states. From the instruction summary: INX/DCX 5, DAD 10, SHLD/LHLD 16, CALL 17, Ccc 11/17, Rcc 5/11, XTHL 18, DAA 4. The per-opcode list of cycles and states goes in §6.
 
+**Status byte per cycle type** (Table 2-1, p.2-6, read from the page image; hex = D7..D0):
+
+| # | Cycle type | Status | `a` in T1–T5 | Data direction in T2/TW/T3 |
+|---|------------|--------|---------------|-----------------------------|
+| 1 | Instruction fetch (M1) | A2 | PC | read |
+| 2 | Memory read | 82 | operand address | read |
+| 3 | Memory write | 00 | operand address | write |
+| 4 | Stack read | 86 | SP | read |
+| 5 | Stack write | 04 | SP | write |
+| 6 | Input read | 42 | `{port, port}` | read |
+| 7 | Output write | 10 | `{port, port}` | write |
+| 8 | Interrupt acknowledge | 23 | PC (not incremented) | read, from interrupt logic (MEMR = 0) |
+| 9 | Halt acknowledge | 8A | PC | none: TWH after T2 |
+| 10 | Interrupt acknowledge while halted | 2B | PC (not incremented) | read, from interrupt logic |
+
+**Pins per state** (one model clock per state; "–" = not compared because the matching enable is 0):
+
+| State | `sync` | `a_oe` / `a` | `d_oe` / `d_out` | `dbin` | `wr_n` | `wait_o` |
+|-------|--------|---------------|-------------------|--------|--------|----------|
+| T1 (all types) | 1 | 1 / cycle address | 1 / status byte | 0 | 1 | 0 |
+| T2, read types (1, 2, 4, 6, 8, 10) | 0 | 1 / held | 0 / – | 1 | 1 | 0 |
+| T2, write types (3, 5, 7) | 0 | 1 / held | 1 / output data | 0 | 1 | 0 |
+| T2, halt ack (9) | 0 | 1 / held | 0 / – | 0 | 1 | 0 |
+| TW, read types | 0 | 1 / held | 0 / – | 1 | 1 | 1 |
+| TW, write types | 0 | 1 / held | 1 / output data | 0 | 0 | 1 |
+| T3, read types | 0 | 1 / held | 0 / – (data sampled) | 1 | 1 | 0 |
+| T3, write types | 0 | 1 / held | 1 / output data | 0 | 0 | 0 |
+| T4, T5 (when used) | 0 | 1 / held | – / – (internal bus, not compared) | 0 | 1 | 0 |
+| TWH (halt) | 0 | 0 / – | 0 / – | 0 | 1 | 1 |
+| Hold (from HLDA rising) | 0 | 0 / – | 0 / – | 0 | 1 | 0 |
+
+`hlda` = 1 exactly in the hold states; `inte` = the INTE flip-flop in every state. While `reset` = 1, see §5. Sources and decisions for each cell are in the notes below.
 
 **Confirmed so far (User's Manual §2, pp.2-6 to 2-10), in our one-clock-per-state model:**
 
@@ -70,7 +102,6 @@ To be written, at the same level as the 4004's §4: per machine-cycle type (inst
 - **Interrupt acknowledge cycle** (p.2-11): an enabled INT sets the internal interrupt latch in the last state of the current instruction, so the instruction always completes. The next cycle is like an M1 fetch, with status M1 = 1 **and** INTA = 1 (D0). `a` = PC in T1, but **PC is not incremented**. External logic puts the interrupt instruction on the bus for T3 (`i8080_system`: RST n, §7). INTE is reset at T1 of that cycle (p.5-14).
 - **Hold** (p.2-13): HLDA rises at the start of T3 of a read or input cycle, otherwise at the start of the state after T3. The address and data lines float shortly after the next φ2, which is within that same state. *Decision* (one clock per state): `hlda` = 1, `a_oe` = 0, `d_oe` = 0 from that state on. If the cycle needs T4/T5, the CPU runs through them internally while held, then stops at the end of the machine cycle. When HOLD falls, `hlda` = 0 at the next state boundary, and the CPU resumes with the next machine cycle.
 - **Halt** (p.2-13): after HLT, the CPU enters the halt state (TWH) after T2 of the next machine cycle, whose status has HLTA = 1. It leaves only by: RESET → T1 with PC = 0; HOLD → hold state, and back to halt when HOLD falls; or an interrupt with INTE = 1 → T1 of an interrupt-acknowledge cycle at the next state boundary. With INTE = 0 when the halt is entered, only RESET leaves it. In TWH (Figure 2-11, p.2-14): `wait_o` = 1 from the first TWH until the halt is left; `dbin` = 0; the address and data buses are drawn dashed. *Decision:* `a_oe` = 0 and `d_oe` = 0 in TWH, so `a`/`d_out` aren't compared. That reads Intel's dashed lines as floating, the same convention as the hold figures [check against the figure legend if one exists].
-- §4 now has every cell type covered at the level of the manual's text and Figures 2-5 to 2-12. Before sign-off, the per-cycle table gets written out in full, one row per machine-cycle type × state, like the 4004's §4.
 ## 5. Reset
 RESET held for at least 3 clock periods restores PC to 0; it "has no effect on status flags, or on any of the processor's working registers (accumulator, registers, or stack pointer)", which stay indeterminate until the program sets them (User's Manual p.2-13, confirmed §10). RESET also resets INTE and HLDA (p.5-14). The instruction register on reset: [check]. *Decision:* tests hold reset ≥ 3 clocks and must not read A, B–L, SP or F before writing them; the RTL may clear them.
 
@@ -79,19 +110,137 @@ RESET held for at least 3 clock periods restores PC to 0; it "has no effect on s
 **Unreset registers in random tests** (*Decision*, Beru's option (b)): A, B–L, SP and F stay unreset, as on the real part. Every C8 program starts with a fixed preamble that writes all of them before anything reads them: `LXI SP,nnnn; LXI B; LXI D; LXI H; PUSH H; POP PSW; MVI A` (POP PSW sets F). The model starts comparing register-dependent results only after the preamble. The preamble's exact bytes go in `tests/random/` and are referenced here when written.
 
 ## 6. Instructions (normative once checked)
-244 opcodes [check] in the groups below, each to get an exact table like the 4004's §6, with S/Z/AC/P/CY effects per instruction:
+244 documented opcodes (User's Manual p.4-15 summary, counted from the page image; the other 12 bytes are the undocumented ones in the decision below) in the groups below, each to get an exact table like the 4004's §6, with S/Z/AC/P/CY effects per instruction:
 - Data transfer: MOV, MVI, LXI, LDA, STA, LHLD, SHLD, LDAX, STAX, XCHG.
 - Arithmetic: ADD, ADC, SUB, SBB, ADI, ACI, SUI, SBI, INR, DCR, INX, DCX, DAD, DAA.
 - Logical: ANA, XRA, ORA, CMP, ANI, XRI, ORI, CPI, RLC, RRC, RAL, RAR, CMA, CMC, STC.
 - Branch: JMP, Jcc, CALL, Ccc, RET, Rcc, RST, PCHL.
 - Stack, I/O, machine control: PUSH, POP (incl. PSW), XTHL, SPHL, IN, OUT, EI, DI, HLT, NOP.
 
+### 6.1 Opcode table (User's Manual p.4-15, from the page image)
+Fields: `DDD`/`SSS` = register code B 000, C 001, D 010, E 011, H 100, L 101, M 110 (memory at HL), A 111. `RP` = pair code B 00, D 01, H 10, SP 11 (PUSH/POP: 11 = PSW). `CCC` = condition NZ 000, Z 001, NC 010, C 011, PO 100, PE 101, P 110, M 111. `NNN` = RST number. `b2`/`b3` = second and third bytes (16-bit values little-endian: `b3:b2`). States: the first number when a condition is false, the second when true. "–" = no flags change.
+
+| Encoding | Mnemonic | Effect | Flags | States |
+|----------|----------|--------|-------|--------|
+| 01 DDD SSS (D, S ≠ 110) | MOV r1,r2 | r1 = r2 | – | 5 |
+| 01 110 SSS (S ≠ 110) | MOV M,r | (HL) = r | – | 7 |
+| 01 DDD 110 (D ≠ 110) | MOV r,M | r = (HL) | – | 7 |
+| 01 110 110 | HLT | halt (§4) | – | 7 |
+| 00 DDD 110 b2 | MVI r / MVI M | r = b2 (M: 10 states) | – | 7 / 10 |
+| 00 DDD 100 | INR r / INR M | r = r + 1 | Z S P AC | 5 / 10 (M) |
+| 00 DDD 101 | DCR r / DCR M | r = r − 1 | Z S P AC | 5 / 10 (M) |
+| 10 000 SSS | ADD | A = A + s | Z S P CY AC | 4 / 7 (M) |
+| 10 001 SSS | ADC | A = A + s + CY | Z S P CY AC | 4 / 7 (M) |
+| 10 010 SSS | SUB | A = A − s | Z S P CY AC | 4 / 7 (M) |
+| 10 011 SSS | SBB | A = A − s − CY | Z S P CY AC | 4 / 7 (M) |
+| 10 100 SSS | ANA | A = A & s | Z S P; CY = 0; AC per §6 quirk | 4 / 7 (M) |
+| 10 101 SSS | XRA | A = A ^ s | Z S P; CY = AC = 0 | 4 / 7 (M) |
+| 10 110 SSS | ORA | A = A \| s | Z S P; CY = AC = 0 | 4 / 7 (M) |
+| 10 111 SSS | CMP | flags of A − s, A unchanged | Z S P CY AC | 4 / 7 (M) |
+| 11 000 110 b2 | ADI | A = A + b2 | Z S P CY AC | 7 |
+| 11 001 110 b2 | ACI | A = A + b2 + CY | Z S P CY AC | 7 |
+| 11 010 110 b2 | SUI | A = A − b2 | Z S P CY AC | 7 |
+| 11 011 110 b2 | SBI | A = A − b2 − CY | Z S P CY AC | 7 |
+| 11 100 110 b2 | ANI | A = A & b2 | as ANA | 7 |
+| 11 101 110 b2 | XRI | A = A ^ b2 | as XRA | 7 |
+| 11 110 110 b2 | ORI | A = A \| b2 | as ORA | 7 |
+| 11 111 110 b2 | CPI | flags of A − b2 | Z S P CY AC | 7 |
+| 00 000 111 | RLC | CY = A7; A = {A[6:0], A7} | CY | 4 |
+| 00 001 111 | RRC | CY = A0; A = {A0, A[7:1]} | CY | 4 |
+| 00 010 111 | RAL | {CY, A} = {A, CY} | CY | 4 |
+| 00 011 111 | RAR | {A, CY} = {CY, A} | CY | 4 |
+| 11 000 011 b2 b3 | JMP | PC = b3:b2 | – | 10 |
+| 11 CCC 010 b2 b3 | Jcc | if cc: PC = b3:b2 | – | 10 |
+| 11 001 101 b2 b3 | CALL | push PC; PC = b3:b2 | – | 17 |
+| 11 CCC 100 b2 b3 | Ccc | if cc: push PC; PC = b3:b2 | – | 11 / 17 |
+| 11 001 001 | RET | PC = pop | – | 10 |
+| 11 CCC 000 | Rcc | if cc: PC = pop | – | 5 / 11 |
+| 11 NNN 111 | RST n | push PC; PC = 8 × NNN | – | 11 |
+| 11 101 001 | PCHL | PC = HL | – | 5 |
+| 11 011 011 b2 | IN | A = port b2 (`a` = `{b2, b2}`) | – | 10 |
+| 11 010 011 b2 | OUT | port b2 = A | – | 10 |
+| 00 RP0 001 b2 b3 | LXI rp | rp = b3:b2 | – | 10 |
+| 11 RP0 101 | PUSH rp / PUSH PSW | (SP−1) = high, (SP−2) = low (PSW: A, then F per §3); SP −= 2 | – | 11 |
+| 11 RP0 001 | POP rp / POP PSW | low = (SP), high = (SP+1); SP += 2 (PSW: F, A) | POP PSW: all | 10 |
+| 00 110 010 b2 b3 | STA | (b3:b2) = A | – | 13 |
+| 00 111 010 b2 b3 | LDA | A = (b3:b2) | – | 13 |
+| 11 101 011 | XCHG | swap DE and HL | – | 4 |
+| 11 100 011 | XTHL | swap L with (SP), H with (SP+1) | – | 18 |
+| 11 111 001 | SPHL | SP = HL | – | 5 |
+| 00 RP1 001 | DAD rp | HL = HL + rp | CY only | 10 |
+| 00 0X0 010 (X: 0 = B, 1 = D) | STAX B / STAX D | (rp) = A | – | 7 |
+| 00 0X1 010 | LDAX B / LDAX D | A = (rp) | – | 7 |
+| 00 RP0 011 | INX rp | rp = rp + 1 | – | 5 |
+| 00 RP1 011 | DCX rp | rp = rp − 1 | – | 5 |
+| 00 101 111 | CMA | A = ~A | – | 4 |
+| 00 110 111 | STC | CY = 1 | CY | 4 |
+| 00 111 111 | CMC | CY = ~CY | CY | 4 |
+| 00 100 111 | DAA | decimal adjust (§6 quirk) | Z S P CY AC | 4 |
+| 00 100 010 b2 b3 | SHLD | (b3:b2) = L, (b3:b2 + 1) = H | – | 16 |
+| 00 101 010 b2 b3 | LHLD | L = (b3:b2), H = (b3:b2 + 1) | – | 16 |
+| 11 111 011 | EI | INTE = 1 after the next instruction (ALP p.3-24) | – | 4 |
+| 11 110 011 | DI | INTE = 0 | – | 4 |
+| 00 000 000 | NOP | none | – | 4 |
+
+Checks of this table against p.4-15 still to do before sign-off: one more read of every row against the page image by a second agent (Beru, as the model writer). The machine-cycle breakdown per opcode (which cycles from §4 each instruction runs) goes in §6.2 from the manual's instruction-cycle tables (pp.2-16 to 2-20).
+
+### 6.2 Machine cycles per instruction (User's Manual pp.2-16 to 2-20, from the page images)
+Notation: **F4** / **F5** = instruction fetch (§4 type 1) of 4 or 5 states (T5 only when the table uses it). **R(x)** = memory read (type 2) at address x, **W(x)** = memory write (type 3), 3 states each plus any TW. **SR**/**SW** = stack read/write (types 4/5) at SP. **IN**/**OUT** = types 6/7. **I3** = a 3-state machine cycle with no bus transfer (see the DAD note). "[9]" in the manual (the result of an ALU op written to A during T2 of the *next* M1) is internal overlap, not an extra cycle.
+
+| Instruction | Cycles | States |
+|-------------|--------|--------|
+| MOV r1,r2 | F5 | 5 |
+| MOV r,M | F4, R(HL) | 7 |
+| MOV M,r | F4, W(HL) | 7 |
+| SPHL | F5 | 5 |
+| MVI r | F4, R(PC) | 7 |
+| MVI M | F4, R(PC), W(HL) | 10 |
+| LXI rp | F4, R(PC), R(PC) | 10 |
+| LDA | F4, R(PC), R(PC), R(WZ) | 13 |
+| STA | F4, R(PC), R(PC), W(WZ) | 13 |
+| LHLD | F4, R(PC), R(PC), R(WZ), R(WZ+1) | 16 |
+| SHLD | F4, R(PC), R(PC), W(WZ), W(WZ+1) | 16 |
+| LDAX rp | F4, R(rp) | 7 |
+| STAX rp | F4, W(rp) | 7 |
+| XCHG | F4 | 4 |
+| ADD/ADC/SUB/SBB/ANA/XRA/ORA/CMP r | F4 (result written in the next M1's T2, [9]) | 4 |
+| same, M | F4, R(HL) | 7 |
+| ADI/ACI/SUI/SBI/ANI/XRI/ORI/CPI | F4, R(PC) | 7 |
+| INR r / DCR r | F5 | 5 |
+| INR M / DCR M | F4, R(HL), W(HL) | 10 |
+| INX rp / DCX rp | F5 | 5 |
+| DAD rp | F4, I3, I3 | 10 |
+| DAA | F4 | 4 |
+| RLC / RRC / RAL / RAR | F4 (result in the next M1's T2, [9]) | 4 |
+| CMA / CMC / STC | F4 | 4 |
+| JMP | F4, R(PC), R(PC) | 10 |
+| Jcc | F4, R(PC), R(PC) (both bytes read whether or not the jump is taken) | 10 |
+| CALL | F5, R(PC), R(PC), SW(SP−1) = PCH, SW(SP−2) = PCL | 17 |
+| Ccc | F5, R(PC), R(PC); if true: SW, SW as CALL | 11 / 17 |
+| RET | F4, SR(SP), SR(SP+1) | 10 |
+| Rcc | F5; if true: SR, SR as RET | 5 / 11 |
+| RST n | F5, SW(SP−1) = PCH, SW(SP−2) = PCL | 11 |
+| PCHL | F5 | 5 |
+| PUSH rp / PUSH PSW | F5, SW(SP−1) = high (A for PSW), SW(SP−2) = low (flags for PSW) | 11 |
+| POP rp / POP PSW | F4, SR(SP) = low, SR(SP+1) = high | 10 |
+| XTHL | F4, SR(SP) → Z, SR(SP+1) → W, SW(SP+1) = H, SW(SP) = L with T4, T5 (WZ → HL) | 18 |
+| IN port | F4, R(PC), IN at `{port, port}` | 10 |
+| OUT port | F4, R(PC), OUT at `{port, port}` | 10 |
+| EI / DI | F4 | 4 |
+| NOP | F4 | 4 |
+| HLT | F4, then a halt-acknowledge cycle (§4 type 9: T1, T2, then TWH until it's left) | 7 |
+
+- `WZ` is the internal temporary pair holding the address from bytes 2–3. Only its value on `a` is visible.
+- **DAD** (p.2-16/2-17): M2 and M3 do internal adds with no "OUT STATUS" entry, so the table shows no bus transfer. What `sync`, `d_out`/`d_oe` and `a` do in those two cycles is **[check]**: it needs a timing figure or a second primary source. Until then C2 must not compare pins during DAD's M2/M3, and the reference model must mark them "not compared". This has to be settled before sign-off.
+- After a taken jump, CALL, RST or RET, the next M1 fetches from the new PC. The manual's "WZ OUT, (WZ)+1 → PC" column (p.2-19) is that next fetch, not part of the current instruction.
+- Every row's total matches the state count in §6.1 (p.4-15). Notes [11]–[20] of the table (pp.2-19/2-20) still need a read for edge details (e.g. note [20], halt mode), before sign-off.
+
 Flag rules every opcode table row follows (to become per-opcode lines in the §6 tables):
 - P = 1 when the result has an even number of 1 bits. Z = result is 0. S = result bit 7.
 - INR/DCR: Z, S, P, AC from the result; **CY unchanged**.
 - DAD: **only CY** changes (carry out of bit 15).
 - CMP/CPI: flags exactly as SUB/SUI with the same operands; A unchanged. CY = 1 means borrow (A < operand, unsigned).
-- SUB/SBB/SUI/SBI: CY = 1 on borrow. AC for subtraction [check: the 8080 computes it from the two's-complement addition `A + ~op + 1`; pin down from a source].
+- SUB/SUI/CMP/CPI (confirmed §10, ALP p.3-64): computed as the two's-complement addition `t = A + ~op + 1` (9 bits). **CY = NOT t[8]** (so CY = 1 means borrow), **AC = carry out of bit 3 of that addition, not complemented** (`AC = (A[3:0] + ~op[3:0] + 1) > 15`). The manual's example: SUB A with A = 3E gives CY = 0, S = 0, Z = 1, P = 1, AC = 1. SBB/SBI (ALP p.3-57): `t = A + ~op + (NOT CY)` (9 bits), CY = NOT t[8], AC = carry out of bit 3 of `A[3:0] + ~op[3:0] + (NOT CY)`. The manual's example: A = 4, B = 2, CY = 1 → A = 1, CY 0, S 0, Z 0, P 0, AC 1, which matches. *Decision:* the manual describes it as "add CY to the operand, then subtract", which wraps for op = FF with CY = 1. We specify the 9-bit form above, so the result is always the true `A − op − CY` mod 256, with CY = borrow.
 - Rotates (RLC, RRC, RAL, RAR): only CY changes.
 - INX/DCX, MOV, MVI, LXI, loads/stores, XCHG, XTHL, SPHL, PCHL: no flags.
 
@@ -114,7 +263,7 @@ Known quirks to pin down exactly (each needs a source):
 | C1 | Every opcode: registers, memory and all five flags exactly per §6 |
 | C2 | Pin timing per §4 for every machine-cycle type, including the status byte at SYNC |
 | C3 | READY / wait states, HOLD / HLDA, at every legal point |
-| C4 | Interrupts: EI's one-instruction delay [check], RST via the interrupt-acknowledge cycle, INT while halted |
+| C4 | Interrupts: EI takes effect only after the next instruction completes (ALP p.3-24), RST via the interrupt-acknowledge cycle, INT while halted |
 | C5 | DAA and AC in every case |
 | C6 | Reset |
 | C7 | No X/Z on any output; no bus conflict |
@@ -127,12 +276,14 @@ Known quirks to pin down exactly (each needs a source):
 
 ## 10. Datasheet check
 Source read: Intel *8080 Microcomputer Systems User's Manual*, September 1975 (98-153B, scan with text layer), read 2026-11-14 by Igris. Page numbers are the manual's printed numbers.
-- [x] Status byte bit assignment: D0 INTA, D1 WO (active low: 0 = write/output), D2 STACK, D3 HLTA, D4 OUT, D5 M1, D6 INP, D7 MEMR (Table 2-1, p.2-6).
+- [x] Status byte bit assignment: D0 INTA, D1 WO (active low: 0 = write/output), D2 STACK, D3 HLTA, D4 OUT, D5 M1, D6 INP, D7 MEMR (Table 2-1, p.2-6, page image). The text on p.2-5 says "M1 status bit (D6)": a misprint, since Table 2-1 has M1 = D5.
+- [x] Status word per cycle type (Table 2-1 chart, p.2-6): A2, 82, 00, 86, 04, 42, 10, 23, 8A, 2B.
 - [x] Reset: ≥ 3 clock periods, PC to 0, no effect on flags, A, B–L or SP (p.2-13).
 - [x] Reset also resets INTE and HLDA; "flags, accumulator, stack pointer, and registers are not cleared" (p.5-14).
 - [ ] Reset effect on the instruction register.
 - [x] Pin functions (8080A functional pin definition, p.5-14): WR active low; READY low → WAIT; HOLD recognised in HALT or in T2/TW with READY active; HLDA from T3 (read/input) or the period after T3 (write/output); INTE reset by RESET and at T1 of M1 when an interrupt is accepted; INT recognised at the end of an instruction or while halted, not in HOLD or with INTE = 0.
-- [~] Pinout (p.5-14 figure, OCR; pins 31 and 34 to be confirmed on the page image): 1 A10, 2 GND, 3 D4, 4 D5, 5 D6, 6 D7, 7 D3, 8 D2, 9 D1, 10 D0, 11 −5V, 12 RESET, 13 HOLD, 14 INT, 15 φ2, 16 INTE, 17 DBIN, 18 WR, 19 SYNC, 20 +5V, 21 HLDA, 22 φ1, 23 READY, 24 WAIT, 25 A0, 26 A1, 27 A2, 28 +12V, 29 A3, 30 A4, 31 A5, 32 A6, 33 A7, 34 A8, 35 A9, 36 A15, 37 A12, 38 A13, 39 A14, 40 A11. Reference only; tests bind to the RTL port names in §2.
+- [x] Flag byte for PUSH/POP PSW: bit 0 CY, 1 = 1, 2 P, 3 = 0, 4 AC, 5 = 0, 6 Z, 7 S (p.4-13).
+- [x] Pinout (p.5-14 figure; confirmed on the rendered page image, including pins 31 = A5 and 34 = A8): 1 A10, 2 GND, 3 D4, 4 D5, 5 D6, 6 D7, 7 D3, 8 D2, 9 D1, 10 D0, 11 −5V, 12 RESET, 13 HOLD, 14 INT, 15 φ2, 16 INTE, 17 DBIN, 18 WR, 19 SYNC, 20 +5V, 21 HLDA, 22 φ1, 23 READY, 24 WAIT, 25 A0, 26 A1, 27 A2, 28 +12V, 29 A3, 30 A4, 31 A5, 32 A6, 33 A7, 34 A8, 35 A9, 36 A15, 37 A12, 38 A13, 39 A14, 40 A11. Reference only; tests bind to the RTL port names in §2.
 - [x] AC after ANA/ANI: not stated in the User's Manual (p.4-8 says "standard rules"); confirmed from the second source below.
 
 Second source: Intel *8080/8085 Assembly Language Programming Manual* (9800301D, May 1981, scan with text layer), read 2026-11-14 by Igris.
@@ -149,5 +300,8 @@ Second source: Intel *8080/8085 Assembly Language Programming Manual* (9800301D,
 - [x] `a` held through T4 of M1; in TWH WAIT = 1, DBIN = 0, buses dashed (Figure 2-11, p.2-14, page image rendered with poppler, toolchain#35).
 - [x] Halt flow (Figure 2-12, p.2-14) matches the three exits in §4. (p.5-14 only says A15–A0 "denotes the I/O device number for up to 256 input and 256 output devices").
 - [x] Undocumented opcodes: decided not tested (§6), since neither Intel manual defines them.
+- [x] Opcode count: 244 documented in the instruction summary (p.4-15, page image): MOV/HLT 64, MVI 8, INR 8, DCR 8, ALU reg/mem 64, ALU immediate 8, rotates 4, branches 35, IN/OUT 2, LXI/PUSH/POP 12, STA/LDA/XCHG/XTHL/SPHL/PCHL 6, DAD/STAX/LDAX/INX/DCX 16, CMA/STC/CMC/DAA/SHLD/LHLD/EI/DI/NOP 9. None of 08, 10, 18, 20, 28, 30, 38, CB, D9, DD, ED, FD appears.
 - [ ] Reset in mid-instruction / mid-hold and the instruction register (§5 *Decision* until a source says otherwise).
-- [ ] AC for SUB/SBB/CMP.
+- [x] SUB/SUI flags: CY = complement of the carry out of `A + ~op + 1`, AC = carry out of bit 3 of that addition, not complemented (ALP p.3-64, page image: SUB A with 3E → CY 0, S 0, Z 1, P 1, AC 1). CMP/CPI: same flags as SUB, A unchanged.
+- [x] SBB/SBI: example A=4, B=2, CY=1 → 1, CY 0, AC 1 (ALP p.3-57, page image) matches `A + ~op + NOT CY`. The op = FF, CY = 1 edge is a *Decision* (§6).
+- [x] EI: "enables the interrupt system following execution of the next program instruction" (ALP p.3-24).
