@@ -117,6 +117,73 @@ RESET held for at least 3 clock periods restores PC to 0; it "has no effect on s
 - Branch: JMP, Jcc, CALL, Ccc, RET, Rcc, RST, PCHL.
 - Stack, I/O, machine control: PUSH, POP (incl. PSW), XTHL, SPHL, IN, OUT, EI, DI, HLT, NOP.
 
+### 6.1 Opcode table (User's Manual p.4-15, from the page image)
+Fields: `DDD`/`SSS` = register code B 000, C 001, D 010, E 011, H 100, L 101, M 110 (memory at HL), A 111. `RP` = pair code B 00, D 01, H 10, SP 11 (PUSH/POP: 11 = PSW). `CCC` = condition NZ 000, Z 001, NC 010, C 011, PO 100, PE 101, P 110, M 111. `NNN` = RST number. `b2`/`b3` = second and third bytes (16-bit values little-endian: `b3:b2`). States: the first number when a condition is false, the second when true. "–" = no flags change.
+
+| Encoding | Mnemonic | Effect | Flags | States |
+|----------|----------|--------|-------|--------|
+| 01 DDD SSS (D, S ≠ 110) | MOV r1,r2 | r1 = r2 | – | 5 |
+| 01 110 SSS (S ≠ 110) | MOV M,r | (HL) = r | – | 7 |
+| 01 DDD 110 (D ≠ 110) | MOV r,M | r = (HL) | – | 7 |
+| 01 110 110 | HLT | halt (§4) | – | 7 |
+| 00 DDD 110 b2 | MVI r / MVI M | r = b2 (M: 10 states) | – | 7 / 10 |
+| 00 DDD 100 | INR r / INR M | r = r + 1 | Z S P AC | 5 / 10 (M) |
+| 00 DDD 101 | DCR r / DCR M | r = r − 1 | Z S P AC | 5 / 10 (M) |
+| 10 000 SSS | ADD | A = A + s | Z S P CY AC | 4 / 7 (M) |
+| 10 001 SSS | ADC | A = A + s + CY | Z S P CY AC | 4 / 7 (M) |
+| 10 010 SSS | SUB | A = A − s | Z S P CY AC | 4 / 7 (M) |
+| 10 011 SSS | SBB | A = A − s − CY | Z S P CY AC | 4 / 7 (M) |
+| 10 100 SSS | ANA | A = A & s | Z S P; CY = 0; AC per §6 quirk | 4 / 7 (M) |
+| 10 101 SSS | XRA | A = A ^ s | Z S P; CY = AC = 0 | 4 / 7 (M) |
+| 10 110 SSS | ORA | A = A \| s | Z S P; CY = AC = 0 | 4 / 7 (M) |
+| 10 111 SSS | CMP | flags of A − s, A unchanged | Z S P CY AC | 4 / 7 (M) |
+| 11 000 110 b2 | ADI | A = A + b2 | Z S P CY AC | 7 |
+| 11 001 110 b2 | ACI | A = A + b2 + CY | Z S P CY AC | 7 |
+| 11 010 110 b2 | SUI | A = A − b2 | Z S P CY AC | 7 |
+| 11 011 110 b2 | SBI | A = A − b2 − CY | Z S P CY AC | 7 |
+| 11 100 110 b2 | ANI | A = A & b2 | as ANA | 7 |
+| 11 101 110 b2 | XRI | A = A ^ b2 | as XRA | 7 |
+| 11 110 110 b2 | ORI | A = A \| b2 | as ORA | 7 |
+| 11 111 110 b2 | CPI | flags of A − b2 | Z S P CY AC | 7 |
+| 00 000 111 | RLC | CY = A7; A = {A[6:0], A7} | CY | 4 |
+| 00 001 111 | RRC | CY = A0; A = {A0, A[7:1]} | CY | 4 |
+| 00 010 111 | RAL | {CY, A} = {A, CY} | CY | 4 |
+| 00 011 111 | RAR | {A, CY} = {CY, A} | CY | 4 |
+| 11 000 011 b2 b3 | JMP | PC = b3:b2 | – | 10 |
+| 11 CCC 010 b2 b3 | Jcc | if cc: PC = b3:b2 | – | 10 |
+| 11 001 101 b2 b3 | CALL | push PC; PC = b3:b2 | – | 17 |
+| 11 CCC 100 b2 b3 | Ccc | if cc: push PC; PC = b3:b2 | – | 11 / 17 |
+| 11 001 001 | RET | PC = pop | – | 10 |
+| 11 CCC 000 | Rcc | if cc: PC = pop | – | 5 / 11 |
+| 11 NNN 111 | RST n | push PC; PC = 8 × NNN | – | 11 |
+| 11 101 001 | PCHL | PC = HL | – | 5 |
+| 11 011 011 b2 | IN | A = port b2 (`a` = `{b2, b2}`) | – | 10 |
+| 11 010 011 b2 | OUT | port b2 = A | – | 10 |
+| 00 RP0 001 b2 b3 | LXI rp | rp = b3:b2 | – | 10 |
+| 11 RP0 101 | PUSH rp / PUSH PSW | (SP−1) = high, (SP−2) = low (PSW: A, then F per §3); SP −= 2 | – | 11 |
+| 11 RP0 001 | POP rp / POP PSW | low = (SP), high = (SP+1); SP += 2 (PSW: F, A) | POP PSW: all | 10 |
+| 00 110 010 b2 b3 | STA | (b3:b2) = A | – | 13 |
+| 00 111 010 b2 b3 | LDA | A = (b3:b2) | – | 13 |
+| 11 101 011 | XCHG | swap DE and HL | – | 4 |
+| 11 100 011 | XTHL | swap L with (SP), H with (SP+1) | – | 18 |
+| 11 111 001 | SPHL | SP = HL | – | 5 |
+| 00 RP1 001 | DAD rp | HL = HL + rp | CY only | 10 |
+| 00 0X0 010 (X: 0 = B, 1 = D) | STAX B / STAX D | (rp) = A | – | 7 |
+| 00 0X1 010 | LDAX B / LDAX D | A = (rp) | – | 7 |
+| 00 RP0 011 | INX rp | rp = rp + 1 | – | 5 |
+| 00 RP1 011 | DCX rp | rp = rp − 1 | – | 5 |
+| 00 101 111 | CMA | A = ~A | – | 4 |
+| 00 110 111 | STC | CY = 1 | CY | 4 |
+| 00 111 111 | CMC | CY = ~CY | CY | 4 |
+| 00 100 111 | DAA | decimal adjust (§6 quirk) | Z S P CY AC | 4 |
+| 00 100 010 b2 b3 | SHLD | (b3:b2) = L, (b3:b2 + 1) = H | – | 16 |
+| 00 101 010 b2 b3 | LHLD | L = (b3:b2), H = (b3:b2 + 1) | – | 16 |
+| 11 111 011 | EI | INTE = 1 after the next instruction (ALP p.3-24) | – | 4 |
+| 11 110 011 | DI | INTE = 0 | – | 4 |
+| 00 000 000 | NOP | none | – | 4 |
+
+Checks of this table against p.4-15 still to do before sign-off: one more read of every row against the page image by a second agent (Beru, as the model writer). The machine-cycle breakdown per opcode (which cycles from §4 each instruction runs) goes in §6.2 from the manual's instruction-cycle tables (pp.2-16 to 2-20).
+
 Flag rules every opcode table row follows (to become per-opcode lines in the §6 tables):
 - P = 1 when the result has an even number of 1 bits. Z = result is 0. S = result bit 7.
 - INR/DCR: Z, S, P, AC from the result; **CY unchanged**.
