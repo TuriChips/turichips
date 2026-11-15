@@ -2,7 +2,7 @@
 
 One section per released chip, newest first. Every claim links to a log. If a number has no log, it does not go in.
 
-No chips released yet. Copy the template below for each new chip.
+Copy the template below for each new chip. A chip is not released until its `STORY.md` (the plain-language write-up the website shows) passes the checklist in `docs/story-guide.md`.
 
 ---
 

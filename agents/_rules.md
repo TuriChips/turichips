@@ -29,7 +29,7 @@ This layout is a starting suggestion. Rename folders to suit the repo.
 | ref/, tests/random/ | Reference model and random tests | Verification Engineer B |
 | scripts/, Makefile, .github/ | Build and test automation | Infrastructure Engineer |
 | synth/ | Synthesis scripts and reports | Physical Design Engineer |
-| sw/, README.md, docs/release.md | Demo programs and public write-up | Software and Docs Engineer |
+| sw/, README.md, STORY.md, docs/release.md | Demo programs, technical write-up (README) and public story (STORY) | Software and Docs Engineer |
 | ops/ | Chat app and server setup | Operator |
 | logs/standup.md | Daily reports | Everyone appends |
 
