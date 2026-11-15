@@ -122,7 +122,7 @@ Flag rules every opcode table row follows (to become per-opcode lines in the §6
 - INR/DCR: Z, S, P, AC from the result; **CY unchanged**.
 - DAD: **only CY** changes (carry out of bit 15).
 - CMP/CPI: flags exactly as SUB/SUI with the same operands; A unchanged. CY = 1 means borrow (A < operand, unsigned).
-- SUB/SUI/CMP/CPI (confirmed §10, ALP p.3-64): computed as the two's-complement addition `t = A + ~op + 1` (9 bits). **CY = NOT t[8]** (so CY = 1 means borrow), **AC = carry out of bit 3 of that addition, not complemented** (`AC = (A[3:0] + ~op[3:0] + 1) > 15`). The manual's example: SUB A with A = 3E gives CY = 0, S = 0, Z = 1, P = 1, AC = 1. SBB/SBI: the same with `+ NOT CY` in place of `+ 1` [check: by analogy, needs its own source line].
+- SUB/SUI/CMP/CPI (confirmed §10, ALP p.3-64): computed as the two's-complement addition `t = A + ~op + 1` (9 bits). **CY = NOT t[8]** (so CY = 1 means borrow), **AC = carry out of bit 3 of that addition, not complemented** (`AC = (A[3:0] + ~op[3:0] + 1) > 15`). The manual's example: SUB A with A = 3E gives CY = 0, S = 0, Z = 1, P = 1, AC = 1. SBB/SBI (ALP p.3-57): `t = A + ~op + (NOT CY)` (9 bits), CY = NOT t[8], AC = carry out of bit 3 of `A[3:0] + ~op[3:0] + (NOT CY)`. The manual's example: A = 4, B = 2, CY = 1 → A = 1, CY 0, S 0, Z 0, P 0, AC 1, which matches. *Decision:* the manual describes it as "add CY to the operand, then subtract", which wraps for op = FF with CY = 1. We specify the 9-bit form above, so the result is always the true `A − op − CY` mod 256, with CY = borrow.
 - Rotates (RLC, RRC, RAL, RAR): only CY changes.
 - INX/DCX, MOV, MVI, LXI, loads/stores, XCHG, XTHL, SPHL, PCHL: no flags.
 
@@ -184,5 +184,5 @@ Second source: Intel *8080/8085 Assembly Language Programming Manual* (9800301D,
 - [x] Undocumented opcodes: decided not tested (§6), since neither Intel manual defines them.
 - [ ] Reset in mid-instruction / mid-hold and the instruction register (§5 *Decision* until a source says otherwise).
 - [x] SUB/SUI flags: CY = complement of the carry out of `A + ~op + 1`, AC = carry out of bit 3 of that addition, not complemented (ALP p.3-64, page image: SUB A with 3E → CY 0, S 0, Z 1, P 1, AC 1). CMP/CPI: same flags as SUB, A unchanged.
-- [ ] SBB/SBI: borrow-in form by analogy; needs a source line.
+- [x] SBB/SBI: example A=4, B=2, CY=1 → 1, CY 0, AC 1 (ALP p.3-57, page image) matches `A + ~op + NOT CY`. The op = FF, CY = 1 edge is a *Decision* (§6).
 - [x] EI: "enables the interrupt system following execution of the next program instruction" (ALP p.3-24).
