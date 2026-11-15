@@ -211,10 +211,29 @@ Notation: **F4** / **F5** = instruction fetch (§4 type 1) of 4 or 5 states (T5 
 | INX rp / DCX rp | F5 | 5 |
 | DAD rp | F4, I3, I3 | 10 |
 | DAA | F4 | 4 |
+| RLC / RRC / RAL / RAR | F4 (result in the next M1's T2, [9]) | 4 |
+| CMA / CMC / STC | F4 | 4 |
+| JMP | F4, R(PC), R(PC) | 10 |
+| Jcc | F4, R(PC), R(PC) (both bytes read whether or not the jump is taken) | 10 |
+| CALL | F5, R(PC), R(PC), SW(SP−1) = PCH, SW(SP−2) = PCL | 17 |
+| Ccc | F5, R(PC), R(PC); if true: SW, SW as CALL | 11 / 17 |
+| RET | F4, SR(SP), SR(SP+1) | 10 |
+| Rcc | F5; if true: SR, SR as RET | 5 / 11 |
+| RST n | F5, SW(SP−1) = PCH, SW(SP−2) = PCL | 11 |
+| PCHL | F5 | 5 |
+| PUSH rp / PUSH PSW | F5, SW(SP−1) = high (A for PSW), SW(SP−2) = low (flags for PSW) | 11 |
+| POP rp / POP PSW | F4, SR(SP) = low, SR(SP+1) = high | 10 |
+| XTHL | F4, SR(SP) → Z, SR(SP+1) → W, SW(SP+1) = H, SW(SP) = L with T4, T5 (WZ → HL) | 18 |
+| IN port | F4, R(PC), IN at `{port, port}` | 10 |
+| OUT port | F4, R(PC), OUT at `{port, port}` | 10 |
+| EI / DI | F4 | 4 |
+| NOP | F4 | 4 |
+| HLT | F4, then a halt-acknowledge cycle (§4 type 9: T1, T2, then TWH until it's left) | 7 |
 
 - `WZ` is the internal temporary pair holding the address from bytes 2–3. Only its value on `a` is visible.
 - **DAD** (p.2-16/2-17): M2 and M3 do internal adds with no "OUT STATUS" entry, so the table shows no bus transfer. What `sync`, `d_out`/`d_oe` and `a` do in those two cycles is **[check]**: it needs a timing figure or a second primary source. Until then C2 must not compare pins during DAD's M2/M3, and the reference model must mark them "not compared". This has to be settled before sign-off.
-- Rows for the branch, stack, I/O, RST, XTHL, PCHL, HLT, EI/DI, NOP and rotate instructions come from pp.2-18 to 2-20: next step.
+- After a taken jump, CALL, RST or RET, the next M1 fetches from the new PC. The manual's "WZ OUT, (WZ)+1 → PC" column (p.2-19) is that next fetch, not part of the current instruction.
+- Every row's total matches the state count in §6.1 (p.4-15). Notes [11]–[20] of the table (pp.2-19/2-20) still need a read for edge details (e.g. note [20], halt mode), before sign-off.
 
 Flag rules every opcode table row follows (to become per-opcode lines in the §6 tables):
 - P = 1 when the result has an even number of 1 bits. Z = result is 0. S = result bit 7.
