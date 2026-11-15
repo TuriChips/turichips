@@ -50,9 +50,41 @@ The real 40-pin package (pinout in §10) has a bidirectional 8-bit data bus. As 
 
 Memory: 64 KiB, byte addressed. I/O: 256 input and 256 output ports, the port number is put on both halves of the address bus (ALP p.1-15).
 
-## 4. Machine cycle timing (normative once checked)
-To be written, at the same level as the 4004's §4: per machine-cycle type (instruction fetch, memory read, memory write, stack read, stack write, input, output, interrupt acknowledge, halt acknowledge, interrupt acknowledge while halted), and per T state, the values of `a`, `a_oe`, `d_out`, `d_oe`, `sync`, `dbin`, `wr_n`, `wait_o`, `hlda`. Instructions take 4, 5, 7, 10, 11, 13, 16, 17 or 18 states. From the User's Manual instruction summary: INX/DCX 5, DAD 10, SHLD/LHLD 16, CALL 17, Ccc 11/17, Rcc 5/11, XTHL 18, DAA 4 (confirmed §10). The full per-opcode table gets transcribed from that summary. READY sampled in T2 [check], HOLD sampled in T2 [check], INT sampled at the end of the last state of each instruction [check].
+## 4. Machine cycle timing (normative once signed off)
+Ten machine-cycle types (User's Manual p.2-5). Instructions take 4, 5, 7, 10, 11, 13, 16, 17 or 18 states. From the instruction summary: INX/DCX 5, DAD 10, SHLD/LHLD 16, CALL 17, Ccc 11/17, Rcc 5/11, XTHL 18, DAA 4. The per-opcode list of cycles and states goes in §6.
 
+**Status byte per cycle type** (Table 2-1, p.2-6, read from the page image; hex = D7..D0):
+
+| # | Cycle type | Status | `a` in T1–T5 | Data direction in T2/TW/T3 |
+|---|------------|--------|---------------|-----------------------------|
+| 1 | Instruction fetch (M1) | A2 | PC | read |
+| 2 | Memory read | 82 | operand address | read |
+| 3 | Memory write | 00 | operand address | write |
+| 4 | Stack read | 86 | SP | read |
+| 5 | Stack write | 04 | SP | write |
+| 6 | Input read | 42 | `{port, port}` | read |
+| 7 | Output write | 10 | `{port, port}` | write |
+| 8 | Interrupt acknowledge | 23 | PC (not incremented) | read, from interrupt logic (MEMR = 0) |
+| 9 | Halt acknowledge | 8A | PC | none: TWH after T2 |
+| 10 | Interrupt acknowledge while halted | 2B | PC (not incremented) | read, from interrupt logic |
+
+**Pins per state** (one model clock per state; "–" = not compared because the matching enable is 0):
+
+| State | `sync` | `a_oe` / `a` | `d_oe` / `d_out` | `dbin` | `wr_n` | `wait_o` |
+|-------|--------|---------------|-------------------|--------|--------|----------|
+| T1 (all types) | 1 | 1 / cycle address | 1 / status byte | 0 | 1 | 0 |
+| T2, read types (1, 2, 4, 6, 8, 10) | 0 | 1 / held | 0 / – | 1 | 1 | 0 |
+| T2, write types (3, 5, 7) | 0 | 1 / held | 1 / output data | 0 | 1 | 0 |
+| T2, halt ack (9) | 0 | 1 / held | 0 / – | 0 | 1 | 0 |
+| TW, read types | 0 | 1 / held | 0 / – | 1 | 1 | 1 |
+| TW, write types | 0 | 1 / held | 1 / output data | 0 | 0 | 1 |
+| T3, read types | 0 | 1 / held | 0 / – (data sampled) | 1 | 1 | 0 |
+| T3, write types | 0 | 1 / held | 1 / output data | 0 | 0 | 0 |
+| T4, T5 (when used) | 0 | 1 / held | – / – (internal bus, not compared) | 0 | 1 | 0 |
+| TWH (halt) | 0 | 0 / – | 0 / – | 0 | 1 | 1 |
+| Hold (from HLDA rising) | 0 | 0 / – | 0 / – | 0 | 1 | 0 |
+
+`hlda` = 1 exactly in the hold states; `inte` = the INTE flip-flop in every state. While `reset` = 1, see §5. Sources and decisions for each cell are in the notes below.
 
 **Confirmed so far (User's Manual §2, pp.2-6 to 2-10), in our one-clock-per-state model:**
 
@@ -70,7 +102,6 @@ To be written, at the same level as the 4004's §4: per machine-cycle type (inst
 - **Interrupt acknowledge cycle** (p.2-11): an enabled INT sets the internal interrupt latch in the last state of the current instruction, so the instruction always completes. The next cycle is like an M1 fetch, with status M1 = 1 **and** INTA = 1 (D0). `a` = PC in T1, but **PC is not incremented**. External logic puts the interrupt instruction on the bus for T3 (`i8080_system`: RST n, §7). INTE is reset at T1 of that cycle (p.5-14).
 - **Hold** (p.2-13): HLDA rises at the start of T3 of a read or input cycle, otherwise at the start of the state after T3. The address and data lines float shortly after the next φ2, which is within that same state. *Decision* (one clock per state): `hlda` = 1, `a_oe` = 0, `d_oe` = 0 from that state on. If the cycle needs T4/T5, the CPU runs through them internally while held, then stops at the end of the machine cycle. When HOLD falls, `hlda` = 0 at the next state boundary, and the CPU resumes with the next machine cycle.
 - **Halt** (p.2-13): after HLT, the CPU enters the halt state (TWH) after T2 of the next machine cycle, whose status has HLTA = 1. It leaves only by: RESET → T1 with PC = 0; HOLD → hold state, and back to halt when HOLD falls; or an interrupt with INTE = 1 → T1 of an interrupt-acknowledge cycle at the next state boundary. With INTE = 0 when the halt is entered, only RESET leaves it. In TWH (Figure 2-11, p.2-14): `wait_o` = 1 from the first TWH until the halt is left; `dbin` = 0; the address and data buses are drawn dashed. *Decision:* `a_oe` = 0 and `d_oe` = 0 in TWH, so `a`/`d_out` aren't compared. That reads Intel's dashed lines as floating, the same convention as the hold figures [check against the figure legend if one exists].
-- §4 now has every cell type covered at the level of the manual's text and Figures 2-5 to 2-12. Before sign-off, the per-cycle table gets written out in full, one row per machine-cycle type × state, like the 4004's §4.
 ## 5. Reset
 RESET held for at least 3 clock periods restores PC to 0; it "has no effect on status flags, or on any of the processor's working registers (accumulator, registers, or stack pointer)", which stay indeterminate until the program sets them (User's Manual p.2-13, confirmed §10). RESET also resets INTE and HLDA (p.5-14). The instruction register on reset: [check]. *Decision:* tests hold reset ≥ 3 clocks and must not read A, B–L, SP or F before writing them; the RTL may clear them.
 
@@ -127,7 +158,8 @@ Known quirks to pin down exactly (each needs a source):
 
 ## 10. Datasheet check
 Source read: Intel *8080 Microcomputer Systems User's Manual*, September 1975 (98-153B, scan with text layer), read 2026-11-14 by Igris. Page numbers are the manual's printed numbers.
-- [x] Status byte bit assignment: D0 INTA, D1 WO (active low: 0 = write/output), D2 STACK, D3 HLTA, D4 OUT, D5 M1, D6 INP, D7 MEMR (Table 2-1, p.2-6).
+- [x] Status byte bit assignment: D0 INTA, D1 WO (active low: 0 = write/output), D2 STACK, D3 HLTA, D4 OUT, D5 M1, D6 INP, D7 MEMR (Table 2-1, p.2-6, page image). The text on p.2-5 says "M1 status bit (D6)": a misprint, since Table 2-1 has M1 = D5.
+- [x] Status word per cycle type (Table 2-1 chart, p.2-6): A2, 82, 00, 86, 04, 42, 10, 23, 8A, 2B.
 - [x] Reset: ≥ 3 clock periods, PC to 0, no effect on flags, A, B–L or SP (p.2-13).
 - [x] Reset also resets INTE and HLDA; "flags, accumulator, stack pointer, and registers are not cleared" (p.5-14).
 - [ ] Reset effect on the instruction register.
