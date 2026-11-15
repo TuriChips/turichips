@@ -184,6 +184,38 @@ Fields: `DDD`/`SSS` = register code B 000, C 001, D 010, E 011, H 100, L 101, M 
 
 Checks of this table against p.4-15 still to do before sign-off: one more read of every row against the page image by a second agent (Beru, as the model writer). The machine-cycle breakdown per opcode (which cycles from §4 each instruction runs) goes in §6.2 from the manual's instruction-cycle tables (pp.2-16 to 2-20).
 
+### 6.2 Machine cycles per instruction (User's Manual pp.2-16 to 2-20, from the page images)
+Notation: **F4** / **F5** = instruction fetch (§4 type 1) of 4 or 5 states (T5 only when the table uses it). **R(x)** = memory read (type 2) at address x, **W(x)** = memory write (type 3), 3 states each plus any TW. **SR**/**SW** = stack read/write (types 4/5) at SP. **IN**/**OUT** = types 6/7. **I3** = a 3-state machine cycle with no bus transfer (see the DAD note). "[9]" in the manual (the result of an ALU op written to A during T2 of the *next* M1) is internal overlap, not an extra cycle.
+
+| Instruction | Cycles | States |
+|-------------|--------|--------|
+| MOV r1,r2 | F5 | 5 |
+| MOV r,M | F4, R(HL) | 7 |
+| MOV M,r | F4, W(HL) | 7 |
+| SPHL | F5 | 5 |
+| MVI r | F4, R(PC) | 7 |
+| MVI M | F4, R(PC), W(HL) | 10 |
+| LXI rp | F4, R(PC), R(PC) | 10 |
+| LDA | F4, R(PC), R(PC), R(WZ) | 13 |
+| STA | F4, R(PC), R(PC), W(WZ) | 13 |
+| LHLD | F4, R(PC), R(PC), R(WZ), R(WZ+1) | 16 |
+| SHLD | F4, R(PC), R(PC), W(WZ), W(WZ+1) | 16 |
+| LDAX rp | F4, R(rp) | 7 |
+| STAX rp | F4, W(rp) | 7 |
+| XCHG | F4 | 4 |
+| ADD/ADC/SUB/SBB/ANA/XRA/ORA/CMP r | F4 (result written in the next M1's T2, [9]) | 4 |
+| same, M | F4, R(HL) | 7 |
+| ADI/ACI/SUI/SBI/ANI/XRI/ORI/CPI | F4, R(PC) | 7 |
+| INR r / DCR r | F5 | 5 |
+| INR M / DCR M | F4, R(HL), W(HL) | 10 |
+| INX rp / DCX rp | F5 | 5 |
+| DAD rp | F4, I3, I3 | 10 |
+| DAA | F4 | 4 |
+
+- `WZ` is the internal temporary pair holding the address from bytes 2–3. Only its value on `a` is visible.
+- **DAD** (p.2-16/2-17): M2 and M3 do internal adds with no "OUT STATUS" entry. What `sync`, the status byte and `a` do in those two cycles is **[check]**: the manual's table doesn't show a bus cycle. Until it's confirmed (Figure or a second source), *Decision:* treat them as cycles where `sync` = 1 at their T1 with status = memory read (82) but `dbin` = 0 and nothing is sampled, and mark them "not compared" except for `sync`. This must be settled before C2 is written.
+- Rows for the branch, stack, I/O, RST, XTHL, PCHL, HLT, EI/DI, NOP and rotate instructions come from pp.2-18 to 2-20: next step.
+
 Flag rules every opcode table row follows (to become per-opcode lines in the §6 tables):
 - P = 1 when the result has an even number of 1 bits. Z = result is 0. S = result bit 7.
 - INR/DCR: Z, S, P, AC from the result; **CY unchanged**.
