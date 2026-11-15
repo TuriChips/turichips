@@ -213,7 +213,7 @@ Notation: **F4** / **F5** = instruction fetch (§4 type 1) of 4 or 5 states (T5 
 | DAA | F4 | 4 |
 
 - `WZ` is the internal temporary pair holding the address from bytes 2–3. Only its value on `a` is visible.
-- **DAD** (p.2-16/2-17): M2 and M3 do internal adds with no "OUT STATUS" entry. What `sync`, the status byte and `a` do in those two cycles is **[check]**: the manual's table doesn't show a bus cycle. Until it's confirmed (Figure or a second source), *Decision:* treat them as cycles where `sync` = 1 at their T1 with status = memory read (82) but `dbin` = 0 and nothing is sampled, and mark them "not compared" except for `sync`. This must be settled before C2 is written.
+- **DAD** (p.2-16/2-17): M2 and M3 do internal adds with no "OUT STATUS" entry, so the table shows no bus transfer. What `sync`, `d_out`/`d_oe` and `a` do in those two cycles is **[check]**: it needs a timing figure or a second primary source. Until then C2 must not compare pins during DAD's M2/M3, and the reference model must mark them "not compared". This has to be settled before sign-off.
 - Rows for the branch, stack, I/O, RST, XTHL, PCHL, HLT, EI/DI, NOP and rotate instructions come from pp.2-18 to 2-20: next step.
 
 Flag rules every opcode table row follows (to become per-opcode lines in the §6 tables):
