@@ -122,7 +122,7 @@ Flag rules every opcode table row follows (to become per-opcode lines in the §6
 - INR/DCR: Z, S, P, AC from the result; **CY unchanged**.
 - DAD: **only CY** changes (carry out of bit 15).
 - CMP/CPI: flags exactly as SUB/SUI with the same operands; A unchanged. CY = 1 means borrow (A < operand, unsigned).
-- SUB/SBB/SUI/SBI: CY = 1 on borrow. AC for subtraction [check: the 8080 computes it from the two's-complement addition `A + ~op + 1`; pin down from a source].
+- SUB/SUI/CMP/CPI (confirmed §10, ALP p.3-64): computed as the two's-complement addition `t = A + ~op + 1` (9 bits). **CY = NOT t[8]** (so CY = 1 means borrow), **AC = carry out of bit 3 of that addition, not complemented** (`AC = (A[3:0] + ~op[3:0] + 1) > 15`). The manual's example: SUB A with A = 3E gives CY = 0, S = 0, Z = 1, P = 1, AC = 1. SBB/SBI: the same with `+ NOT CY` in place of `+ 1` [check: by analogy, needs its own source line].
 - Rotates (RLC, RRC, RAL, RAR): only CY changes.
 - INX/DCX, MOV, MVI, LXI, loads/stores, XCHG, XTHL, SPHL, PCHL: no flags.
 
@@ -145,7 +145,7 @@ Known quirks to pin down exactly (each needs a source):
 | C1 | Every opcode: registers, memory and all five flags exactly per §6 |
 | C2 | Pin timing per §4 for every machine-cycle type, including the status byte at SYNC |
 | C3 | READY / wait states, HOLD / HLDA, at every legal point |
-| C4 | Interrupts: EI's one-instruction delay [check], RST via the interrupt-acknowledge cycle, INT while halted |
+| C4 | Interrupts: EI takes effect only after the next instruction completes (ALP p.3-24), RST via the interrupt-acknowledge cycle, INT while halted |
 | C5 | DAA and AC in every case |
 | C6 | Reset |
 | C7 | No X/Z on any output; no bus conflict |
@@ -183,4 +183,6 @@ Second source: Intel *8080/8085 Assembly Language Programming Manual* (9800301D,
 - [x] Halt flow (Figure 2-12, p.2-14) matches the three exits in §4. (p.5-14 only says A15–A0 "denotes the I/O device number for up to 256 input and 256 output devices").
 - [x] Undocumented opcodes: decided not tested (§6), since neither Intel manual defines them.
 - [ ] Reset in mid-instruction / mid-hold and the instruction register (§5 *Decision* until a source says otherwise).
-- [ ] AC for SUB/SBB/CMP.
+- [x] SUB/SUI flags: CY = complement of the carry out of `A + ~op + 1`, AC = carry out of bit 3 of that addition, not complemented (ALP p.3-64, page image: SUB A with 3E → CY 0, S 0, Z 1, P 1, AC 1). CMP/CPI: same flags as SUB, A unchanged.
+- [ ] SBB/SBI: borrow-in form by analogy; needs a source line.
+- [x] EI: "enables the interrupt system following execution of the next program instruction" (ALP p.3-24).
