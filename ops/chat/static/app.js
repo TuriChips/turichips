@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const S = { meta: null, current: null, cache: {}, threadId: null, thread: [], lastId: 0, unread: {}, working: {}, routing: [] };
+const S = { meta: null, current: null, view: "chat", cache: {}, threadId: null, thread: [], lastId: 0, unread: {}, working: {}, routing: [] };
 
 const api = async (path, opts) => {
   const r = await fetch(path, opts);
@@ -58,7 +58,7 @@ function renderSidebar() {
     const busy = S.working[id] ? " busy" : "";
     return item(`dm-${id}`, `<div class="mini" style="background:${a.color}">${a.name[0]}<span class="dot${busy}"></span></div>${a.name}`);
   }).join("");
-  $("view-list").firstElementChild.className = S.current === null ? "active" : "";
+  for (const li of $("view-list").children) li.className = S.current === null && S.view === li.dataset.view ? "active" : "";
   $("channel-list").innerHTML = ch;
   $("dm-list").innerHTML = dm;
 }
@@ -70,7 +70,7 @@ function item(id, inner) {
 }
 
 function renderMain() {
-  if (S.current === null) { renderOfficeStatus(); return; }
+  if (S.current === null) { if (S.view === "office") renderOfficeStatus(); return; }
   const list = S.cache[S.current] || [];
   const el = $("messages");
   stickToBottom(el, () => {
@@ -106,26 +106,65 @@ function renderWorking() {
   $("thread-working").textContent = S.threadId ? line(names((w) => w.parent_id === S.threadId)) : "";
 }
 
-function setOfficeVisible(on) {
-  $("office").classList.toggle("hidden", !on);
-  for (const id of ["messages", "composer"]) $(id).classList.toggle("hidden", on);
-  if (on) Office.start($("office-canvas"), S.meta, () => S.working, (agent) => openChannel(`dm-${agent}`));
+function setView(view) {   // "chat", "office" or "usage"
+  S.view = view;
+  $("office").classList.toggle("hidden", view !== "office");
+  $("usage").classList.toggle("hidden", view !== "usage");
+  for (const id of ["messages", "composer", "working"]) $(id).classList.toggle("hidden", view !== "chat");
+  if (view === "office") Office.start($("office-canvas"), S.meta, () => S.working, (agent) => openChannel(`dm-${agent}`));
   else Office.stop();
+  clearInterval(S.usageTimer);
+  if (view === "usage") { loadUsage(); S.usageTimer = setInterval(loadUsage, 15000); }
 }
 
-function openOffice() {
+function openView(view) {
   S.current = null;
   $("app").classList.remove("nav-open");
-  $("title").textContent = "🏢 Office";
+  $("title").textContent = view === "office" ? "🏢 Office" : "📊 Usage";
   closeThread();
-  setOfficeVisible(true);
+  setView(view);
   renderSidebar();
-  renderOfficeStatus();
-  history.replaceState(null, "", "#office");
+  if (view === "office") renderOfficeStatus();
+  else $("topic").textContent = "Claude Team seats: limits from each agent run, refreshed at least every 30 min.";
+  history.replaceState(null, "", `#${view}`);
+}
+
+const ist = (ts) => new Date(ts * 1000).toLocaleString("en-GB", { timeZone: "Asia/Kolkata", weekday: "short",
+  hour: "2-digit", minute: "2-digit", hour12: false }) + " IST";
+const ago = (ts) => { const m = Math.round((Date.now() / 1000 - ts) / 60); return m < 1 ? "just now" : m < 120 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
+const fmtTok = (n) => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${n}`;
+
+function usageBar(label, w) {
+  if (!w || w.utilization == null) return `<div class="ubar"><div class="ubar-head"><span>${label}</span><span class="muted">no data yet</span></div><div class="ubar-track"></div></div>`;
+  const pct = Math.round(w.utilization * 100);
+  const blocked = w.status && w.status !== "allowed";
+  const level = blocked || pct >= 90 ? "red" : pct >= 70 ? "amber" : "ok";
+  return `<div class="ubar"><div class="ubar-head"><span>${label}</span><span><b>${pct}%</b>${blocked ? " · blocked" : ""}</span></div>
+    <div class="ubar-track"><div class="ubar-fill ${level}" style="width:${Math.min(pct, 100)}%"></div></div>
+    <div class="muted small">resets ${w.resetsAt ? ist(w.resetsAt) : "—"}</div></div>`;
+}
+
+async function loadUsage() {
+  if (S.view !== "usage") return;
+  let data;
+  try { data = await api("/api/usage"); } catch (e) { console.warn(e); return; }
+  const cards = data.seats.map((s) => {
+    const t = s.today;
+    const today = t ? `${t.turns} turn${t.turns === 1 ? "" : "s"} · ${fmtTok(t.input + t.cache_read + t.cache_write)} in · ${fmtTok(t.output)} out · $${t.cost.toFixed(2)}`
+      : "no runs yet today";
+    return `<div class="ucard">
+      <div class="ucard-head"><b>${escape(s.seat)}</b><span class="muted">${escape(s.agents.join(" + "))}</span></div>
+      ${usageBar("5-hour", s.windows.five_hour)}
+      ${usageBar("Weekly", s.windows.seven_day)}
+      <div class="small">Today (IST): ${today}</div>
+      <div class="muted small">updated ${s.updated ? ago(s.updated) : "never"}</div>
+    </div>`;
+  }).join("");
+  $("usage").innerHTML = `<div class="ugrid">${cards}</div>`;
 }
 
 async function openChannel(id) {
-  setOfficeVisible(false);
+  setView("chat");
   history.replaceState(null, "", `#${id}`);
   S.current = id;
   S.unread[id] = 0;
@@ -215,7 +254,8 @@ async function main() {
   document.addEventListener("click", (e) => {
     const ch = e.target.closest("[data-channel]");
     if (ch) openChannel(ch.dataset.channel);
-    if (e.target.closest("[data-view]")) openOffice();
+    const v = e.target.closest("[data-view]");
+    if (v) openView(v.dataset.view);
     const th = e.target.closest("[data-thread]");
     if (th) openThread(Number(th.dataset.thread));
   });
@@ -225,7 +265,7 @@ async function main() {
   wireComposer($("thread-composer"), $("thread-input"), () => S.threadId);
   S.working = (await api(`/api/updates?after=${S.lastId}`)).working;   // so busy agents start at their desks
   const start = location.hash.slice(1);
-  if (start === "office") openOffice();
+  if (start === "office" || start === "usage") openView(start);
   else await openChannel(S.meta.channels.some((c) => c.id === start) || start.startsWith("dm-") ? start : "general");
   setInterval(poll, 1500);
 }

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from config import AGENTS
 from gate import wait_turn
+import usage
 
 REPO = Path(os.environ.get("TURICHIPS_REPO", Path.home() / "turichips"))
 WORK = Path(os.environ.get("TURICHIPS_WORK", Path.home() / "work"))
@@ -60,8 +61,11 @@ async def prepare(agent: str) -> tuple[Path, str]:
 
 def account_env(agent: str) -> dict:
     """Environment for one agent's Claude run, logged in as that agent's Team seat."""
+    return seat_env(AGENTS[agent].get("account", ""))
+
+
+def seat_env(seat: str) -> dict:
     env = os.environ.copy()
-    seat = AGENTS[agent].get("account", "")
     token = os.environ.get(f"CLAUDE_TOKEN_{seat.upper()}") if seat else None
     if token:
         env["CLAUDE_CODE_OAUTH_TOKEN"] = token
@@ -73,7 +77,7 @@ def account_env(agent: str) -> dict:
 async def run_turn(agent: str, message: str, session_id: str, resume: bool) -> tuple[str, bool]:
     """Returns (reply text, ok). The session only counts as started when ok is True."""
     wt, system_prompt = await prepare(agent)
-    cmd = [CLAUDE, "-p", message, "--output-format", "json", "--model", AGENTS[agent]["model"],
+    cmd = [CLAUDE, "-p", message, "--output-format", "stream-json", "--verbose", "--model", AGENTS[agent]["model"],
            "--append-system-prompt", system_prompt,
            "--dangerously-skip-permissions"]  # runs as the isolated `turichips` user
     cmd += ["--resume", session_id] if resume else ["--session-id", session_id]
@@ -85,9 +89,29 @@ async def run_turn(agent: str, message: str, session_id: str, resume: bool) -> t
     except asyncio.TimeoutError:
         proc.kill()
         return f"I ran out of time ({TIMEOUT // 60} min) on this one. Reply to let me continue.", resume
+    data, rate = parse_stream(out)
     try:
-        data = json.loads(out)
+        usage.record(AGENTS[agent].get("account", ""), rate, data)
+    except Exception as e:               # usage numbers must never cost a reply
+        print(f"usage record failed: {e}", flush=True)
+    if data is not None:
         return data.get("result") or "(no reply)", not data.get("is_error", False)
-    except json.JSONDecodeError:
-        tail = (err or out).decode(errors="replace")[-800:] or "(no output)"
-        return f"Something broke while I was working (exit code {proc.returncode}):\n```\n{tail}\n```", False
+    tail = (err or out).decode(errors="replace")[-800:] or "(no output)"
+    return f"Something broke while I was working (exit code {proc.returncode}):\n```\n{tail}\n```", False
+
+
+def parse_stream(out: bytes) -> tuple[dict | None, dict | None]:
+    """(final result event, last rate_limit_info) from Claude Code's stream-json output."""
+    result = rate = None
+    for line in out.decode(errors="replace").splitlines():
+        if not line.startswith("{"):
+            continue
+        try:
+            ev = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if ev.get("type") == "result":
+            result = ev
+        elif ev.get("type") == "rate_limit_event":
+            rate = ev.get("rate_limit_info") or rate
+    return result, rate

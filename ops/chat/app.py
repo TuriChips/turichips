@@ -15,6 +15,7 @@ from config import ROUTER_DEFAULT
 from router import is_status_question, pick, tagged
 from runner import run_turn
 import shift
+import usage
 import os
 
 HERE = Path(__file__).parent
@@ -43,6 +44,12 @@ CHANNEL_IDS = {c["id"] for c in CHANNELS} | {f"dm-{a}" for a in AGENTS}
 @app.on_event("startup")
 async def start_shifts():
     shift.start(working, agent_locks, slots)
+    usage.start()
+
+
+@app.get("/api/usage")
+def usage_view():
+    return {"seats": usage.snapshot(), "now": __import__("time").time()}
 
 
 class NewMessage(BaseModel):
