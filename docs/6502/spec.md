@@ -46,7 +46,16 @@ To be written as a total table, like the 8080's: for each addressing mode × ins
 - Read-modify-write instructions write the **unmodified** value back once, then the modified value (two write cycles).
 - Branches: 2 cycles not taken, 3 taken, 4 taken across a page, with dummy reads.
 - Implied and accumulator instructions do a dummy read of the next byte.
-- Interrupt sequence (IRQ, NMI, BRK, RESET): 7 cycles. RESET does its three stack accesses as reads, not writes.
+- Interrupt sequence (IRQ, NMI, BRK): **7 cycles**, from Example 9.2 (p.131), shown there with S = FF:
+  1. opcode fetch at PC ("Finish Previous Operation");
+  2. fetch at PC again, with the opcode discarded ("Force a BRK Instruction, Hold P-Counter");
+  3. push PCH at 01FF;
+  4. push PCL at 01FE;
+  5. push P at 01FD;
+  6. read vector low at FFFE (FFFA for NMI);
+  7. read vector high at FFFF (FFFB) and set I;
+
+  then the opcode fetch at the vector. For BRK itself, cycle 2's address is PC + 1 and the pushed PC is PC + 2 (p.144) [check: BRK's own cycle table]. RESET does its three stack accesses as reads, not writes [check].
 
 ## 5. Reset
 `res_n` low for at least [check] cycles. Then the 7-cycle sequence, the vector fetch from FFFC/FFFD, and the first opcode fetch. *Decision* to write down: pins while `res_n` = 0, and when comparison starts (the first SYNC after reset), as for the 4004 and 8080.
@@ -57,7 +66,7 @@ To be written as a total table, like the 8080's: for each addressing mode × ins
 Quirks that must each be pinned to a source line before C1 is written:
 - **`JMP ($xxFF)`** fetches the high byte from `$xx00`, not `$(xx+1)00` (confirmed §10: Programming Manual Example 9.6, p.141, fetches ADH from address "IAH, IAL+1" after "Add 1 to IAL", an 8-bit add to the low byte with no carry into IAH). Bus cycles: 1 opcode at PC, 2 IAL at PC+1, 3 IAH at PC+2, 4 ADL at {IAH, IAL}, 5 ADH at {IAH, IAL+1 mod 256}, then the next opcode fetch at {ADH, ADL}.
 - **Decimal mode (D = 1) on the NMOS part:** ADC/SBC give correct BCD results and C for valid BCD inputs. N, V and Z are the documented trouble spot: on NMOS they follow intermediate binary results, not the BCD answer [check]. *Decision* needed: specify the NMOS behaviour exactly (from a primary source), or test only valid BCD inputs and C/A.
-- **The B flag and BRK** (confirmed §10, Programming Manual §9.11, p.144): BRK pushes the address of the **second byte after BRK** (PC + 2) and P, then loads PC from FFFE/FFFF. In the pushed P, **B (bit 4, the manual's `AND #$10`) is 1 for BRK and 0 for an IRQ**. Still [check]: B for PHP and NMI, whether B exists outside the pushed byte, and **whether BRK sets I**. The same page says BRK "changes no values in either the registers or the flags" but also that it goes "through an interrupt sequence", so read the interrupt-sequence text (§9.5) before deciding.
+- **The B flag and BRK** (confirmed §10, Programming Manual §9.11, p.144): BRK pushes the address of the **second byte after BRK** (PC + 2) and P, then loads PC from FFFE/FFFF. In the pushed P, **B (bit 4, the manual's `AND #$10`) is 1 for BRK and 0 for an IRQ**. **BRK sets I** (confirmed §10): an interrupt is serviced by **forcing a BRK** (Example 9.2, p.131, cycle 2: "Force a BRK Instruction"), and that shared sequence does "Vector Low → PCL and Set I" in cycle 7. The text adds that "the interrupt disable is turned on at this point by the microprocessor automatically". So p.144's "changes no values in either the registers or the flags" is read as "no register or arithmetic flag other than I". This is *Decision* wording, built on the p.131 table. Still [check]: B for PHP and NMI.
 - **Interrupt timing:** IRQ/NMI are sampled during the last cycle of an instruction [check: which phase], a taken branch without page cross delays the IRQ by one instruction, and an NMI arriving during a BRK's vector fetch "hijacks" it [check].
 - **RDY on NMOS** only stops read cycles [check].
 - **Undocumented opcodes** (105 of the 256 bytes): *Decision* proposed, as for the 4004 and 8080: not tested and excluded from C8, unless a primary source defines them. The Programming Manual doesn't.
@@ -85,5 +94,6 @@ Quirks that must each be pinned to a source line before C1 is written:
 
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13 up to about p.92, and *n* + 16 by p.138 (unnumbered inserts), so check the printed number on each rendered page.
-- [x] BRK (§9.11, p.144, page image): pushes PC + 2 and P, vector FFFE/FFFF, pushed B = 1 for BRK, 0 for IRQ, B is bit 4 (`AND #$10`). Open: I after BRK (the page's "changes no … flags" vs "interrupt sequence"), B on PHP/NMI.
+- [x] Interrupt sequence (§9.5, Example 9.2, p.131, page image): 7 cycles as listed in §4. Cycle 2 forces a BRK, cycle 7 sets I, and the text says "the interrupt disable is turned on … automatically". So BRK sets I.
+- [x] BRK (§9.11, p.144, page image): pushes PC + 2 and P, vector FFFE/FFFF, pushed B = 1 for BRK, 0 for IRQ, B is bit 4 (`AND #$10`). Open: B on PHP/NMI (I after BRK is resolved by p.131 above).
 - [x] `JMP ($xxFF)` page wrap: §6.6 (p.92) is silent, but **§9.8.1, Example 9.6 "Illustration of JMP Indirect" (p.141, page image)** gives the cycle table: cycle 4 reads ADL at "IAH, IAL" while doing "Add 1 to IAL", and cycle 5 reads ADH at "IAH, IAL+1". The increment is to IAL alone, so the high-byte pointer stays in the same page. This is a primary-source basis for the wrap, read from the bus addresses, not stated as a caution.
