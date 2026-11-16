@@ -84,4 +84,5 @@ Quirks that must each be pinned to a source line before C1 is written:
 4. **An independent existing 6502 emulator** for instruction-level comparison (Beru chooses, MAME's core first, licence recorded).
 
 ## 10. Datasheet check
-Not started. Every [check] gets a line here with the page it was confirmed on.
+Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13.
+- [ ] `JMP ($xxFF)` page wrap. **Not stated in Programming Manual §6.6 "Indirect Absolute"** (p.92, page image): the section only introduces the absolute indirect jump and defers to "the discussion on interrupts". Next: read that chapter's JMP-indirect text. If no MOS document states the wrap, the behaviour becomes an explicit *Decision* citing a secondary source, as the 8080's DCR AC did.
