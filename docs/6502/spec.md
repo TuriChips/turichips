@@ -59,7 +59,7 @@ To be written as a total table, like the 8080's: for each addressing mode × ins
 
 ## 5. Reset
 While `res_n` = 0 the CPU is "guaranteed to be in a Read state" (`rw` = 1), and after release it stays in Read until it has fetched the vector (p.126). Then the 7-cycle sequence in §4, and the first opcode fetch in cycle 8. Minimum low time for `res_n`: [check, Hardware Manual].
-*Decisions*: while `res_n` = 0, `rw` = 1, `d_oe` = 0, and `a`/`sync` are not compared. In reset cycles 1 and 2, `a` is not compared (the manual prints "?"). Comparison of everything starts at the first SYNC (cycle 8), and register-dependent values only after the C8 preamble has written them, exactly as for the 8080's unreset registers.
+*Decisions*: while `res_n` = 0, `rw` = 1, `d_oe` = 0, and `a`/`sync` are not compared. In reset cycles 1 and 2, `a` is not compared (the manual prints "?"). Comparison of everything starts at the first SYNC (cycle 8), **preamble included, with no exemption window**: the C8 preamble writes A, X, Y, S and P before anything reads them, as for the 8080 (Beru, turichips#26).
 
 ## 6. Instructions (normative once checked)
 151 documented opcodes, 56 instructions, 13 addressing modes [check]. Each will get an exact table row (encoding, addressing mode, cycles, flags), as the 8080's §6.1.
