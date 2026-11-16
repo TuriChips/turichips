@@ -26,3 +26,10 @@ A minimal Slack-style app for talking to the agents. The UI is for reading and c
 - `#needs-sai` gets `BLOCKED-SAI:` lines (sai-review PRs, decisions, access), once per blocker per agent: the same text again is dropped. A crashed turn also lands here.
 - Once a day, at the first poll after `sai_digest_hour_ist` (10:00 IST), the scheduler lists open `sai-review` PRs across the org in `#needs-sai`.
 - A status/progress question with no tag wakes only Igris, who gets the live `/status` table in the prompt.
+
+## Usage tab
+
+- **📊 Usage** (under Office) shows each Claude Team seat: 5-hour and weekly utilization with reset times (IST), its agents, and today's turns/tokens/cost.
+- Source: the seat tokens can't read Anthropic's usage API (setup-token has no `user:profile` scope), so `runner.py` runs Claude Code with `--output-format stream-json` and `usage.py` keeps the last `rate_limit_event` per seat plus daily totals from each run's result.
+- A seat with no run for 30 min gets a tiny Haiku probe (`USAGE_PROBES=0` turns probes off).
+- A seat at 90% or blocked in either window posts once per reset period to `#needs-sai`.
