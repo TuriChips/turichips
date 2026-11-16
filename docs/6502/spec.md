@@ -25,7 +25,7 @@ Sources for §10 (bitsavers, fetched to a scratch dir, never committed):
 | `d_oe` | out | 1 | 1 in write cycles (split bus, no tri-states, as for the 4004 and 8080) |
 | `rw` | out | 1 | R/W: 1 = read, 0 = write |
 | `sync` | out | 1 | SYNC: 1 in an opcode-fetch cycle |
-| `rdy` | in | 1 | RDY: 0 halts the CPU on a **read** cycle [check: NMOS ignores RDY on write cycles] |
+| `rdy` | in | 1 | RDY: 0 delays the current cycle, **only if it's a read** (Hardware Manual §1.4.1.2.8, p.37: "will not stop the processor in a cycle in which a WRITE operation is being performed … will execute that cycle and will then stop in the next READ cycle (R/W = 1)"). The CPU repeats the stopped read cycle with the same address while `rdy` = 0 |
 | `irq_n` | in | 1 | Maskable interrupt, level-sensitive, gated by the I flag |
 | `nmi_n` | in | 1 | Non-maskable interrupt, edge-sensitive (falling edge) |
 | `so_n` | in | 1 | Set Overflow: a falling edge sets V [check timing] |
@@ -75,7 +75,7 @@ Quirks that must each be pinned to a source line before C1 is written:
   - My recommendation is **(a)**, because the lab rebuilds the real chip. But it rests on a secondary source, so it's Sai's call.
 - **The B flag and BRK** (confirmed §10, Programming Manual §9.11, p.144): BRK pushes the address of the **second byte after BRK** (PC + 2) and P, then loads PC from FFFE/FFFF. In the pushed P, **B (bit 4, the manual's `AND #$10`) is 1 for BRK and 0 for an IRQ**. **BRK sets I** (confirmed §10): an interrupt is serviced by **forcing a BRK** (Example 9.2, p.131, cycle 2: "Force a BRK Instruction"), and that shared sequence does "Vector Low → PCL and Set I" in cycle 7. The text adds that "the interrupt disable is turned on at this point by the microprocessor automatically". So p.144's "changes no values in either the registers or the flags" is read as "no register or arithmetic flag other than I". This is *Decision* wording, built on the p.131 table. Still [check]: B for PHP and NMI.
 - **Interrupt timing:** IRQ/NMI are sampled during the last cycle of an instruction [check: which phase], a taken branch without page cross delays the IRQ by one instruction, and an NMI arriving during a BRK's vector fetch "hijacks" it [check].
-- **RDY on NMOS** only stops read cycles [check].
+- **RDY** only stops read cycles (confirmed, p.37). Stimulus rule (*Decision*, as for the 8080): tests change `rdy` only on the clock edge that starts a cycle. The manual says RDY "should change during the Phase One clock pulse" and is "recognized during the next Phase Two", which maps to that edge in our one-clock model.
 - **Undocumented opcodes** (105 of the 256 bytes): *Decision* proposed, as for the 4004 and 8080: not tested and excluded from C8, unless a primary source defines them. The Programming Manual doesn't.
 
 ## 7. System for tests
@@ -101,6 +101,7 @@ Quirks that must each be pinned to a source line before C1 is written:
 
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13 up to about p.92, and *n* + 16 by p.138 (unnumbered inserts), so check the printed number on each rendered page.
+- [x] RDY (Hardware Manual §1.4.1.2.8, p.37, page image; offset printed n = PDF n + 13): stops only read cycles; a write in progress completes, and the stop happens at the next read; change in φ1, recognised in the next φ2. Also p.32: "The address bus will always contain known data as detailed in Appendix A", the per-cycle table to read for §4.
 - [x] I and D (§3.2–3.3, pp.26–27, page images): I changed only by BRK, CLI, PLP, RTI, SEI; D only by CLD, PLP, RTI, SED (so interrupts don't clear D); SED makes ADC/SBC decimal. Decimal ADC/SBC (§2.2.1.2–2.2.2, pp.13–14, page images): BCD result and C defined; **N/V/Z in decimal mode not stated anywhere in the manual**, so it's an open decision (§6).
 - [x] Reset (§9.1–9.3, pp.125–127, page images): Read state while reset is low and until the vector is fetched; Example 9.1's 7-cycle start sequence (stack accesses are reads); the only automatic actions are I = 1 and PC ← vector; registers random. Open: minimum reset low time (Hardware Manual), S after the sequence (*Decision*: not compared).
 - [x] Interrupt sequence (§9.5, Example 9.2, p.131, page image): 7 cycles as listed in §4. Cycle 2 forces a BRK, cycle 7 sets I, and the text says "the interrupt disable is turned on … automatically". So BRK sets I.
