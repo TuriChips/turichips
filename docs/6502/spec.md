@@ -55,7 +55,7 @@ To be written as a total table, like the 8080's: for each addressing mode × ins
 151 documented opcodes, 56 instructions, 13 addressing modes [check]. Each will get an exact table row (encoding, addressing mode, cycles, flags), as the 8080's §6.1.
 
 Quirks that must each be pinned to a source line before C1 is written:
-- **`JMP ($xxFF)`** fetches the high byte from `$xx00`, not `$(xx+1)00` (no carry into the page) [check].
+- **`JMP ($xxFF)`** fetches the high byte from `$xx00`, not `$(xx+1)00` (confirmed §10: Programming Manual Example 9.6, p.141, fetches ADH from address "IAH, IAL+1" after "Add 1 to IAL", an 8-bit add to the low byte with no carry into IAH). Bus cycles: 1 opcode at PC, 2 IAL at PC+1, 3 IAH at PC+2, 4 ADL at {IAH, IAL}, 5 ADH at {IAH, IAL+1 mod 256}, then the next opcode fetch at {ADH, ADL}.
 - **Decimal mode (D = 1) on the NMOS part:** ADC/SBC give correct BCD results and C for valid BCD inputs. N, V and Z are the documented trouble spot: on NMOS they follow intermediate binary results, not the BCD answer [check]. *Decision* needed: specify the NMOS behaviour exactly (from a primary source), or test only valid BCD inputs and C/A.
 - **The B flag:** not a real flip-flop; only the pushed copy differs (BRK/PHP vs IRQ/NMI) [check].
 - **Interrupt timing:** IRQ/NMI are sampled during the last cycle of an instruction [check: which phase], a taken branch without page cross delays the IRQ by one instruction, and an NMI arriving during a BRK's vector fetch "hijacks" it [check].
@@ -84,5 +84,5 @@ Quirks that must each be pinned to a source line before C1 is written:
 4. **An independent existing 6502 emulator** for instruction-level comparison (Beru chooses, MAME's core first, licence recorded).
 
 ## 10. Datasheet check
-Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13.
-- [ ] `JMP ($xxFF)` page wrap. **Not stated in Programming Manual §6.6 "Indirect Absolute"** (p.92, page image): the section only introduces the absolute indirect jump and defers to "the discussion on interrupts". Next: read that chapter's JMP-indirect text. If no MOS document states the wrap, the behaviour becomes an explicit *Decision* citing a secondary source, as the 8080's DCR AC did.
+Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13 up to about p.92, and *n* + 16 by p.138 (unnumbered inserts), so check the printed number on each rendered page.
+- [x] `JMP ($xxFF)` page wrap: §6.6 (p.92) is silent, but **§9.8.1, Example 9.6 "Illustration of JMP Indirect" (p.141, page image)** gives the cycle table: cycle 4 reads ADL at "IAH, IAL" while doing "Add 1 to IAL", and cycle 5 reads ADH at "IAH, IAL+1". The increment is to IAL alone, so the high-byte pointer stays in the same page. This is a primary-source basis for the wrap, read from the bus addresses, not stated as a caution.
