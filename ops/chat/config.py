@@ -11,7 +11,8 @@ CHANNELS = [
     {"id": "general", "topic": "Company-wide. Tag @name or @all, or just talk and the right people answer."},
     {"id": "standup", "topic": "Standups: Passed / In progress / Blocked."},
     {"id": "reviews", "topic": "Weekly reviews: what shipped, what slipped, what to do better."},
-    {"id": "work", "topic": "Shift log: one line per work turn. /status, /pause, /resume work in any channel."},
+    {"id": "work", "topic": "Shift log: one line per finished piece of work. /status, /pause, /resume work in any channel."},
+    {"id": "needs-sai", "topic": "Waiting on Sai: sai-review PRs, decisions, access. Plus a daily list of sai-review PRs."},
 ]
 
 # Shifts (shift.py): agents keep working from GitHub without being messaged.
@@ -25,6 +26,7 @@ SHIFT = {
     "idle_gap_seconds": 60 * 60,     # after IDLE, or when nothing is assigned
     "max_parallel": 3,               # work turns at once; leaves room in MAX_PARALLEL_AGENTS for Sai's chat
     "session_reset_seconds": 12 * 3600,
+    "sai_digest_hour_ist": 10,       # daily list of open sai-review PRs in #needs-sai, first poll after this hour
 }
 
 # Posts from the scheduler itself (command replies) use this author.
