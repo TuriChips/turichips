@@ -33,10 +33,10 @@ Sources for §10 (bitsavers, fetched to a scratch dir, never committed):
 ## 3. Programmer's model
 | Name | Width | Reset value | Notes |
 |------|-------|-------------|-------|
-| `A`, `X`, `Y` | 8 each | not reset [check] | *Decision* proposed: unreset, with a C8 preamble as for the 8080 |
-| `S` | 8 | [check: the reset sequence decrements S by 3 without writing] | Stack in page 1, address `{01, S}` |
+| `A`, `X`, `Y` | 8 each | **not reset** (p.126: "internal registers may be initialized to any random condition") | *Decision*: unreset, with a C8 preamble as for the 8080 |
+| `S` | 8 | **not initialised** (p.127: the only automatic reset actions are setting I and loading PC; programs start with `LDX #n; TXS`). The reset sequence reads at {01,S}, {01,S−1}, {01,S−2} (Example 9.1); whether S is left decremented by 3 is not stated, so *Decision*: S after reset is **not compared**, and the C8 preamble sets it | Stack in page 1, address `{01, S}` |
 | `PC` | 16 | from the reset vector FFFC/FFFD | |
-| `P` | 8 | I = 1 after reset [check]; others not reset [check] | `N V 1 B D I Z C`, bit 5 reads 1 when pushed. **B exists only in the pushed byte**: 1 from PHP/BRK, 0 from IRQ/NMI [check] |
+| `P` | 8 | **I = 1** after reset (p.127: "turn on the interrupt disable bit"); the others not reset (the same page lists no other automatic action) | `N V 1 B D I Z C`, bit 5 reads 1 when pushed. **B exists only in the pushed byte**: 1 from PHP/BRK, 0 from IRQ/NMI [check] |
 
 Vectors: NMI FFFA/FFFB, RESET FFFC/FFFD, IRQ and BRK FFFE/FFFF.
 
@@ -55,10 +55,11 @@ To be written as a total table, like the 8080's: for each addressing mode × ins
   6. read vector low at FFFE (FFFA for NMI);
   7. read vector high at FFFF (FFFB) and set I;
 
-  then the opcode fetch at the vector. For BRK itself, cycle 2's address is PC + 1 and the pushed PC is PC + 2 (p.144) [check: BRK's own cycle table]. RESET does its three stack accesses as reads, not writes [check].
+  then the opcode fetch at the vector. For BRK itself, cycle 2's address is PC + 1 and the pushed PC is PC + 2 (p.144) [check: BRK's own cycle table]. **RESET**, after `res_n` rises (Example 9.1, p.127): 7 cycles. 1 and 2 at undefined addresses ("?", "? + 1"), 3–5 at {01,S}, {01,S−1}, {01,S−2} as **reads** ("the read/write line is disabled so that no writes to stack are accomplished"), 6 FFFC, 7 FFFD, then 8 the first opcode at the vector.
 
 ## 5. Reset
-`res_n` low for at least [check] cycles. Then the 7-cycle sequence, the vector fetch from FFFC/FFFD, and the first opcode fetch. *Decision* to write down: pins while `res_n` = 0, and when comparison starts (the first SYNC after reset), as for the 4004 and 8080.
+While `res_n` = 0 the CPU is "guaranteed to be in a Read state" (`rw` = 1), and after release it stays in Read until it has fetched the vector (p.126). Then the 7-cycle sequence in §4, and the first opcode fetch in cycle 8. Minimum low time for `res_n`: [check, Hardware Manual].
+*Decisions*: while `res_n` = 0, `rw` = 1, `d_oe` = 0, and `a`/`sync` are not compared. In reset cycles 1 and 2, `a` is not compared (the manual prints "?"). Comparison of everything starts at the first SYNC (cycle 8), and register-dependent values only after the C8 preamble has written them, exactly as for the 8080's unreset registers.
 
 ## 6. Instructions (normative once checked)
 151 documented opcodes, 56 instructions, 13 addressing modes [check]. Each will get an exact table row (encoding, addressing mode, cycles, flags), as the 8080's §6.1.
@@ -94,6 +95,7 @@ Quirks that must each be pinned to a source line before C1 is written:
 
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13 up to about p.92, and *n* + 16 by p.138 (unnumbered inserts), so check the printed number on each rendered page.
+- [x] Reset (§9.1–9.3, pp.125–127, page images): Read state while reset is low and until the vector is fetched; Example 9.1's 7-cycle start sequence (stack accesses are reads); the only automatic actions are I = 1 and PC ← vector; registers random. Open: minimum reset low time (Hardware Manual), S after the sequence (*Decision*: not compared).
 - [x] Interrupt sequence (§9.5, Example 9.2, p.131, page image): 7 cycles as listed in §4. Cycle 2 forces a BRK, cycle 7 sets I, and the text says "the interrupt disable is turned on … automatically". So BRK sets I.
 - [x] BRK (§9.11, p.144, page image): pushes PC + 2 and P, vector FFFE/FFFF, pushed B = 1 for BRK, 0 for IRQ, B is bit 4 (`AND #$10`). Open: B on PHP/NMI (I after BRK is resolved by p.131 above).
 - [x] `JMP ($xxFF)` page wrap: §6.6 (p.92) is silent, but **§9.8.1, Example 9.6 "Illustration of JMP Indirect" (p.141, page image)** gives the cycle table: cycle 4 reads ADL at "IAH, IAL" while doing "Add 1 to IAL", and cycle 5 reads ADH at "IAH, IAL+1". The increment is to IAL alone, so the high-byte pointer stays in the same page. This is a primary-source basis for the wrap, read from the bus addresses, not stated as a caution.
