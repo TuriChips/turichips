@@ -12,7 +12,10 @@ Ownership on GitHub (all agents share one GitHub account, so names live in title
 - PR reviewer: label "review:<id>"
 - Igris merges PRs labelled "approved" with green CI, unless they carry "sai-review" (those wait for Sai).
 
-Each work turn's report is posted to #work. Sai controls shifts with /pause, /resume and /status.
+Reports: #work gets a line only when a turn ends DONE (finished work). A turn that ends BLOCKED-SAI posts
+to #needs-sai, and only when that agent's blocker text changed. IDLE, plain BLOCKED (waiting on another
+agent, already visible on GitHub) and replies with no status line post nothing. Once a day the scheduler
+lists the open "sai-review" PRs in #needs-sai. Sai controls shifts with /pause, /resume and /status.
 """
 import asyncio
 import json
@@ -20,18 +23,24 @@ import re
 import subprocess
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import db
-from config import AGENTS, SHIFT
+from config import AGENTS, SHIFT, SYSTEM
 from runner import run_turn
 
 ORG = SHIFT["org"]
 MERGER = SHIFT["merger"]
 NAME_TO_ID = {v["name"].lower(): k for k, v in AGENTS.items()}
+NEEDS_SAI = "needs-sai"
+IST = timezone(timedelta(hours=5, minutes=30))
+STATUS_LINE = re.compile(r"\W*(DONE|BLOCKED-SAI|BLOCKED|IDLE)\b", re.I)
 
-state = {a: {"next": 0.0, "last_result": "", "last_end": 0.0, "fp": None, "rebase": False, "items": []}
+state = {a: {"next": 0.0, "last_result": "", "last_end": 0.0, "fp": None, "rebase": False, "items": [],
+             "last_sai": ""}
          for a in AGENTS}
 _ctx = {}
+sai_queue: list[dict] = []   # open PRs labelled sai-review, refreshed by every snapshot
 
 
 # ---------- GitHub ----------
@@ -77,6 +86,7 @@ def snapshot() -> dict[str, list[dict]] | None:
     if repos is None:
         return None
     items = {a: [] for a in AGENTS}
+    waiting = []
     for repo in repos:
         full = f"{ORG}/{repo['name']}"
         issues = _gh("issue", "list", "-R", full, "--state", "open", "--limit", "100",
@@ -100,9 +110,12 @@ def snapshot() -> dict[str, list[dict]] | None:
                 if m and m.group(1) in AGENTS and "approved" not in labels:
                     items[m.group(1)].append({"kind": "review", "ref": ref, "title": p["title"], "ci": ci,
                                               "updated": p["updatedAt"]})
+            if "sai-review" in labels:
+                waiting.append({"ref": ref, "title": p["title"], "ci": ci})
             if "approved" in labels and "sai-review" not in labels and ci in ("green", "none"):
                 items[MERGER].append({"kind": "merge", "ref": ref, "title": p["title"], "ci": ci,
                                       "updated": p["updatedAt"]})
+    sai_queue[:] = waiting
     return items
 
 
@@ -136,22 +149,28 @@ def work_prompt(agent: str, items: list[dict]) -> str:
         "or update a PR, review a PR, or file an issue for someone else. Follow the shift rules in agents/_rules.md. "
         "Do real work, not planning notes. Stop when this step is done.\n\n"
         "End your reply with exactly one line in this form, nothing after it:\n"
-        "DONE: <what you did, with PR/issue refs>  or  BLOCKED: <what, and who can unblock>  or  IDLE: <why>"
+        "DONE: <what you finished, with PR/issue refs>\n"
+        "BLOCKED-SAI: <what you need from Sai, with PR/issue ref>  (only Sai can unblock: sai-review, a decision, access)\n"
+        "BLOCKED: <what, and which agent can unblock>\n"
+        "IDLE  (nothing finished this turn; this posts nothing)\n"
+        "Only DONE is posted to #work, so use it only when something is actually finished."
     )
 
 
+def _last_line(text: str) -> str:
+    lines = [l for l in text.strip().splitlines() if l.strip()]
+    return lines[-1].strip() if lines else ""
+
+
 def _result_kind(text: str) -> str:
-    last = text.strip().splitlines()[-1] if text.strip() else ""
-    m = re.match(r"\W*(DONE|BLOCKED|IDLE)\b", last, re.I)
-    return m.group(1).upper() if m else "DONE"
+    """DONE, BLOCKED-SAI, BLOCKED or IDLE. A reply without a status line counts as IDLE, so it posts nothing."""
+    m = STATUS_LINE.match(_last_line(text))
+    return m.group(1).upper() if m else "IDLE"
 
 
 def _report(text: str) -> str:
-    """Short report for #work: the status line, or the tail of the reply if the agent didn't give one."""
-    lines = [l for l in text.strip().splitlines() if l.strip()]
-    if lines and re.match(r"\W*(DONE|BLOCKED|IDLE)\b", lines[-1], re.I):
-        return lines[-1].strip().strip("*")
-    return text.strip()[-600:]
+    """The status line, without markdown bold."""
+    return _last_line(text).strip("*").strip()
 
 
 async def work_turn(agent: str, items: list[dict]):
@@ -168,21 +187,27 @@ async def work_turn(agent: str, items: list[dict]):
             try:
                 answer, ok = await run_turn(agent, work_prompt(agent, items), session, resume)
             except Exception as e:
-                answer, ok = f"BLOCKED: shift turn crashed: `{e}`", False
+                answer, ok = f"BLOCKED-SAI: shift turn crashed: `{e}`", False
             finally:
                 working.pop(agent, None)
         if ok:
             db.save_session(key, session)
-    kind = _result_kind(answer) if ok else "BLOCKED"
+    kind = _result_kind(answer) if ok else "BLOCKED-SAI"
     gap = {"DONE": SHIFT["work_gap_seconds"], "BLOCKED": SHIFT["blocked_gap_seconds"],
-           "IDLE": SHIFT["idle_gap_seconds"]}[kind]
+           "BLOCKED-SAI": SHIFT["blocked_gap_seconds"], "IDLE": SHIFT["idle_gap_seconds"]}[kind]
     if kind == "DONE" and not items:
         gap = SHIFT["idle_gap_seconds"]
     s = state[agent]
     s.update(last_result=kind, last_end=time.time(), next=time.time() + gap, rebase=True)
-    if kind == "IDLE":                   # rule 12: idle turns post nothing
-        return
-    db.add("work", agent, _report(answer) if ok else answer[-600:])
+    report = _report(answer) if ok else answer[-600:]
+    if kind == "DONE":
+        db.add("work", agent, report)
+    elif kind == "BLOCKED-SAI":
+        if report != s["last_sai"]:      # the same blocker again is not news
+            db.add(NEEDS_SAI, agent, report)
+        s["last_sai"] = report
+    if kind != "BLOCKED-SAI":
+        s["last_sai"] = ""               # unblocked: a later blocker is news again
 
 
 # ---------- Scheduler ----------
@@ -206,6 +231,7 @@ async def tick():
     snap = await asyncio.to_thread(snapshot)
     if snap is None:
         return
+    sai_review_digest()
     now = time.time()
     for agent, items in snap.items():
         s = state[agent]
@@ -218,6 +244,21 @@ async def tick():
         if changed or now >= s["next"]:
             s["next"] = now + 24 * 3600         # placeholder until the turn ends and sets the real gap
             asyncio.create_task(work_turn(agent, items))
+
+
+def sai_review_digest():
+    """Once a day (from SAI_DIGEST_HOUR_IST), list open sai-review PRs in #needs-sai. Nothing if there are none."""
+    now = datetime.now(IST)
+    today = now.strftime("%Y-%m-%d")
+    if now.hour < SHIFT["sai_digest_hour_ist"] or db.kv_get("sai_digest_day", "") == today:
+        return
+    db.kv_set("sai_digest_day", today)
+    if not sai_queue:
+        return
+    rows = "\n".join(f"- {p['ref']} {p['title']} (CI {p['ci']})" for p in sai_queue)
+    n = len(sai_queue)
+    db.add(NEEDS_SAI, SYSTEM["id"], f"📋 **{n} PR{'' if n == 1 else 's'} waiting on your review** "
+           f"(label `sai-review`):\n{rows}")
 
 
 def start(working, locks, slots):

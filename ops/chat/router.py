@@ -10,6 +10,14 @@ from gate import wait_turn
 CLAUDE = os.environ.get("CLAUDE_BIN", os.path.expanduser("~/.local/bin/claude"))
 MODEL = os.environ.get("ROUTER_MODEL", "haiku")
 ALL_TAGS = re.compile(r"@(all|everyone|channel|here|team)\b", re.I)
+# Status/progress questions get one answer, from the architect, built from the shift table (rule 11).
+STATUS_ASK = re.compile(
+    r"\b(status|progress|update me|any updates?|what'?s the update|where are we|how far|"
+    r"what'?s (?:everyone|the team) (?:doing|working on)|stand ?up|summary|summari[sz]e)\b", re.I)
+
+
+def is_status_question(text: str) -> bool:
+    return bool(STATUS_ASK.search(text)) and not text.strip().startswith("/")
 
 
 def tagged(text: str) -> list[str]:
@@ -19,6 +27,8 @@ def tagged(text: str) -> list[str]:
 
 
 async def pick(channel: str, text: str, context: str = "") -> list[str]:
+    if is_status_question(text):
+        return [ROUTER_DEFAULT]
     roster = "\n".join(f"- {a}: {v['name']}, {v['role']}" for a, v in AGENTS.items())
     prompt = (
         f"You route messages in the #{channel} channel of TuriChips, a chip design lab staffed by AI agents.\n"
@@ -26,7 +36,9 @@ async def pick(channel: str, text: str, context: str = "") -> list[str]:
         + (f"Thread so far:\n{context}\n\n" if context else "")
         + f"The operator, Sai, wrote:\n{text}\n\n"
         "Who should reply? Greetings or messages addressed to everyone or the team: all agents. "
-        "A question about a specific area: only the agents who own it. If unclear: the architect.\n"
+        "A question about a specific area: only the agents who own it. "
+        "A request for status, progress or a summary: only the architect, who answers for the whole team. "
+        "If unclear: the architect.\n"
         'Answer with JSON only, like {"agents": ["igris", "beru"]}.'
     )
     await wait_turn()

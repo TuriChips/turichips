@@ -11,7 +11,8 @@ from pydantic import BaseModel
 
 import db
 from config import AGENTS, CHANNELS, DM_IDLE_RESET_SECONDS, MANAGER, SYSTEM, WORKSPACE
-from router import pick, tagged
+from config import ROUTER_DEFAULT
+from router import is_status_question, pick, tagged
 from runner import run_turn
 import shift
 import os
@@ -166,6 +167,11 @@ async def respond(agent, channel, reply_parent, key, idle, text, msg_id):
             context = [m for m in context if not (resume and m["author"] == agent)]
             if context:
                 prompt = f"[{where}, messages since you last spoke]\n{lines(context)}\n\n{prompt}"
+        if agent == ROUTER_DEFAULT and not channel.startswith("dm-") and is_status_question(text):
+            # Rule 11: one voice. The architect answers for everyone, starting from the live shift table.
+            prompt = (f"[live shift status, read from GitHub by the scheduler]\n{shift.status_text()}\n\n"
+                      "You are answering this status question for the whole team (rule 11): nobody else will "
+                      "reply. Check GitHub for anything you need to confirm.\n\n" + prompt)
         async with slots:
             working[agent] = {"channel": channel, "parent_id": reply_parent}
             try:
