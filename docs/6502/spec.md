@@ -223,7 +223,32 @@ While `res_n` = 0 the CPU is "guaranteed to be in a Read state" (`rw` = 1), and 
 *Decisions*: while `res_n` = 0, `rw` = 1, `d_oe` = 0, and `a`/`sync` are not compared. In reset cycles 1 and 2, `a` is not compared (the manual prints "?"). Comparison of everything starts at the first SYNC (cycle 8), **preamble included, with no exemption window**: the C8 preamble writes A, X, Y, S and P before anything reads them, as for the 8080 (Beru, turichips#26).
 
 ## 6. Instructions (normative once checked)
-151 documented opcodes, 56 instructions, 13 addressing modes [check]. Each will get an exact table row (encoding, addressing mode, cycles, flags), as the 8080's §6.1.
+**151 documented opcodes, 56 instructions, 13 addressing modes** (confirmed §10, Programming Manual **Appendix D, "Operation Code Instruction Listing Hexadecimal Sequence"**, D-2 to D-5, page images. Every byte 00–FF is listed, and the other **105 are marked "Future Expansion"**, so they're undocumented by MOS).
+
+### 6.0 Opcode map (Appendix D, D-2 to D-5)
+`·` = "Future Expansion" (undocumented; not tested, §6 decision). `(zp,X)`/`(zp),Y` are the manual's "(Indirect,X)"/"(Indirect),Y", and `(abs)` is "JMP Indirect".
+
+| hi\lo | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | A | B | C | D | E | F |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | BRK | ORA (zp,X) | · | · | · | ORA zp | ASL zp | · | PHP | ORA # | ASL A | · | · | ORA abs | ASL abs | · |
+| 1 | BPL rel | ORA (zp),Y | · | · | · | ORA zp,X | ASL zp,X | · | CLC | ORA abs,Y | · | · | · | ORA abs,X | ASL abs,X | · |
+| 2 | JSR abs | AND (zp,X) | · | · | BIT zp | AND zp | ROL zp | · | PLP | AND # | ROL A | · | BIT abs | AND abs | ROL abs | · |
+| 3 | BMI rel | AND (zp),Y | · | · | · | AND zp,X | ROL zp,X | · | SEC | AND abs,Y | · | · | · | AND abs,X | ROL abs,X | · |
+| 4 | RTI | EOR (zp,X) | · | · | · | EOR zp | LSR zp | · | PHA | EOR # | LSR A | · | JMP abs | EOR abs | LSR abs | · |
+| 5 | BVC rel | EOR (zp),Y | · | · | · | EOR zp,X | LSR zp,X | · | CLI | EOR abs,Y | · | · | · | EOR abs,X | LSR abs,X | · |
+| 6 | RTS | ADC (zp,X) | · | · | · | ADC zp | ROR zp | · | PLA | ADC # | ROR A | · | JMP (abs) | ADC abs | ROR abs | · |
+| 7 | BVS rel | ADC (zp),Y | · | · | · | ADC zp,X | ROR zp,X | · | SEI | ADC abs,Y | · | · | · | ADC abs,X | ROR abs,X | · |
+| 8 | · | STA (zp,X) | · | · | STY zp | STA zp | STX zp | · | DEY | · | TXA | · | STY abs | STA abs | STX abs | · |
+| 9 | BCC rel | STA (zp),Y | · | · | STY zp,X | STA zp,X | STX zp,Y | · | TYA | STA abs,Y | TXS | · | · | STA abs,X | · | · |
+| A | LDY # | LDA (zp,X) | LDX # | · | LDY zp | LDA zp | LDX zp | · | TAY | LDA # | TAX | · | LDY abs | LDA abs | LDX abs | · |
+| B | BCS rel | LDA (zp),Y | · | · | LDY zp,X | LDA zp,X | LDX zp,Y | · | CLV | LDA abs,Y | TSX | · | LDY abs,X | LDA abs,X | LDX abs,Y | · |
+| C | CPY # | CMP (zp,X) | · | · | CPY zp | CMP zp | DEC zp | · | INY | CMP # | DEX | · | CPY abs | CMP abs | DEC abs | · |
+| D | BNE rel | CMP (zp),Y | · | · | · | CMP zp,X | DEC zp,X | · | CLD | CMP abs,Y | · | · | · | CMP abs,X | DEC abs,X | · |
+| E | CPX # | SBC (zp,X) | · | · | CPX zp | SBC zp | INC zp | · | INX | SBC # | NOP | · | CPX abs | SBC abs | INC abs | · |
+| F | BEQ rel | SBC (zp),Y | · | · | · | SBC zp,X | INC zp,X | · | SED | SBC abs,Y | · | · | · | SBC abs,X | INC abs,X | · |
+
+Per-opcode cycles, bytes and flags come next from Appendix B (one instruction per half page, PDF ~198–225).
+ Each will get an exact table row (encoding, addressing mode, cycles, flags), as the 8080's §6.1.
 
 Quirks that must each be pinned to a source line before C1 is written:
 - **`JMP ($xxFF)`** fetches the high byte from `$xx00`, not `$(xx+1)00` (confirmed §10: Programming Manual Example 9.6, p.141, fetches ADH from address "IAH, IAL+1" after "Add 1 to IAL", an 8-bit add to the low byte with no carry into IAH). Bus cycles: 1 opcode at PC, 2 IAL at PC+1, 3 IAH at PC+2, 4 ADL at {IAH, IAL}, 5 ADH at {IAH, IAL+1 mod 256}, then the next opcode fetch at {ADH, ADL}.
@@ -270,6 +295,7 @@ Quirks that must each be pinned to a source line before C1 is written:
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13 up to about p.92, and *n* + 16 by p.138 (unnumbered inserts), so check the printed number on each rendered page.
 - [ ] §4 per-cycle table from Appendix A (PDF 168–182): A-1 to A-13 transcribed into §4.1 (single-byte; all read modes incl. abs,X/Y, zp,X/Y, (ind),Y; stores begun). Next: A-6 onward. "BAH + C" reading backed by A.3.6 (dummy read at uncarried BAH). ROR availability note (A-7) → revision decision in §1. A-8 to A-13 done: RMW double write, push/pull, JSR, BRK/interrupts, RTI, JMP, RTS, branches (uncarried first read on taken branches). **Appendix A complete.**
+- [x] Opcode set: Appendix D (D-2 to D-5, page images) lists 151 documented opcodes, 56 mnemonics, 13 addressing modes; 105 bytes are "Future Expansion". ROR is listed (66/6A/6E/76/7E), consistent with the §1 revision decision. Counted by script from a transcription of all 256 entries.
 - [x] §9 Dormann functional test licence: GPL-3.0-or-later (file header, read 2026-11-17); NMOS documented behaviour only; decimal with valid BCD only, N/V/Z ignored. Bruce Clark decimal test: public domain (header), N/V/Z checks optional with NMOS prediction. SingleStepTests 65x02: MIT, emulator-generated, not hardware-verified, so a cross-check only.
 - [x] IRQ/NMI (Hardware Manual pp.25, 38, page images): IRQ level-sensitive and recognised after the current instruction completes; NMI edge-triggered, ≥ 2 cycles low, recognised after the current instruction; I set in the last cycle before the interrupt software. Branch delay, NMI-hijacks-BRK and IRQ/NMI priority are **not** documented, so §6 proposes not specifying them and keeping stimulus away.
 - [x] RDY (Hardware Manual §1.4.1.2.8, p.37, page image; offset printed n = PDF n + 13): stops only read cycles; a write in progress completes, and the stop happens at the next read; change in φ1, recognised in the next φ2. Also p.32: "The address bus will always contain known data as detailed in Appendix A", the per-cycle table to read for §4.
