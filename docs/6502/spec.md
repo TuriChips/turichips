@@ -25,11 +25,11 @@ Sources for §10 (bitsavers, fetched to a scratch dir, never committed):
 | `d_out` | out | 8 | D7–D0 driven by the CPU in write cycles |
 | `d_oe` | out | 1 | 1 in write cycles (split bus, no tri-states, as for the 4004 and 8080) |
 | `rw` | out | 1 | R/W: 1 = read, 0 = write |
-| `sync` | out | 1 | SYNC: 1 in an opcode-fetch cycle |
+| `sync` | out | 1 | SYNC: 1 for the whole of an opcode-fetch cycle (Hardware Manual §1.4.2.3, p.44). With `rdy` = 0 in that cycle the CPU "will stop in its current state", keeping `sync` = 1, until `rdy` = 1 (single-instruction step) |
 | `rdy` | in | 1 | RDY: 0 delays the current cycle, **only if it's a read** (Hardware Manual §1.4.1.2.8, p.37: "will not stop the processor in a cycle in which a WRITE operation is being performed … will execute that cycle and will then stop in the next READ cycle (R/W = 1)"). The CPU repeats the stopped read cycle with the same address while `rdy` = 0 |
 | `irq_n` | in | 1 | Maskable interrupt, level-sensitive, gated by the I flag |
 | `nmi_n` | in | 1 | Non-maskable interrupt, edge-sensitive (falling edge) |
-| `so_n` | in | 1 | Set Overflow: a falling edge sets V [check timing] |
+| `so_n` | in | 1 | Set Overflow: "sets the overflow flag on a negative transition", "should not be used in normal applications" (p.44). *Decision*: held at 1 in C8; one directed C-test drives a falling edge at an instruction boundary and checks V = 1 afterwards. The exact cycle of the V update is [check] |
 
 ## 3. Programmer's model
 | Name | Width | Reset value | Notes |
@@ -219,7 +219,7 @@ So a taken branch's first extra cycle reads at the **uncarried** target, the sam
 **Appendix A is fully transcribed.** §4.0 now states the per-cycle comparison rule. Interrupt timing is in §6.
 
 ## 5. Reset
-While `res_n` = 0 the CPU is "guaranteed to be in a Read state" (`rw` = 1), and after release it stays in Read until it has fetched the vector (p.126). Then the 7-cycle sequence in §4, and the first opcode fetch in cycle 8. Minimum low time for `res_n`: [check, Hardware Manual].
+While `res_n` = 0 the CPU is "guaranteed to be in a Read state" (`rw` = 1), and after release it stays in Read until it has fetched the vector (p.126). Then the 7-cycle sequence in §4, and the first opcode fetch in cycle 8. Minimum low time for `res_n`: not stated in either manual (§1.4.1.2.11, p.40 gives only the behaviour). *Decision*: tests hold `res_n` = 0 for **at least 8 cycles**, and the behaviour for shorter pulses isn't specified. While `res_n` = 0, "writing from the microprocessor is inhibited" (p.40), which confirms `rw` = 1 (§5). p.40 says that after release the CPU "will delay 6 cycles and then fetch the new program count vectors". Example 9.1's per-cycle table (vector reads in cycles 6–7) governs the exact cycles.
 *Decisions*: while `res_n` = 0, `rw` = 1, `d_oe` = 0, and `a`/`sync` are not compared. In reset cycles 1 and 2, `a` is not compared (the manual prints "?"). Comparison of everything starts at the first SYNC (cycle 8), **preamble included, with no exemption window**: the C8 preamble writes A, X, Y, S and P before anything reads them, as for the 8080 (Beru, turichips#26).
 
 ## 6. Instructions (normative once checked)
@@ -370,6 +370,7 @@ Every [check] gets a line here with the page it was confirmed on. Both 1976 scan
 - [x] B on PHP/NMI: PHP pushes P "unchanged" (§8.11, p.122), so B isn't defined there. *Decision*: PHP B = 1, NMI B = 0; matches Dormann's `fao` ("bits always on after PHP, BRK").
 - [x] Opcode set: Appendix D (D-2 to D-5, page images) lists 151 documented opcodes, 56 mnemonics, 13 addressing modes; 105 bytes are "Future Expansion". ROR is listed (66/6A/6E/76/7E), consistent with the §1 revision decision. Counted by script from a transcription of all 256 entries.
 - [x] §9 Dormann functional test licence: GPL-3.0-or-later (file header, read 2026-11-17); NMOS documented behaviour only; decimal with valid BCD only, N/V/Z ignored. Bruce Clark decimal test: public domain (header), N/V/Z checks optional with NMOS prediction. SingleStepTests 65x02: MIT, emulator-generated, not hardware-verified, so a cross-check only.
+- [x] SYNC, S.O., RES (Hardware Manual pp.40, 44): SYNC high for the opcode-fetch cycle, RDY in that cycle holds with SYNC high; S.O. falling edge sets V, not for normal use; reset inhibits writes, vector fetch after the start cycles; no minimum reset time given (*Decision*: ≥ 8 cycles in tests). NMI during IRQ servicing (p.40 event 12): NMI taken regardless of I, IRQ resumes after.
 - [x] IRQ/NMI (Hardware Manual pp.25, 38, page images): IRQ level-sensitive and recognised after the current instruction completes; NMI edge-triggered, ≥ 2 cycles low, recognised after the current instruction; I set in the last cycle before the interrupt software. Branch delay, NMI-hijacks-BRK and IRQ/NMI priority are **not** documented, so §6 proposes not specifying them and keeping stimulus away.
 - [x] RDY (Hardware Manual §1.4.1.2.8, p.37, page image; offset printed n = PDF n + 13): stops only read cycles; a write in progress completes, and the stop happens at the next read; change in φ1, recognised in the next φ2. Also p.32: "The address bus will always contain known data as detailed in Appendix A", the per-cycle table to read for §4.
 - [x] I and D (§3.2–3.3, pp.26–27, page images): I changed only by BRK, CLI, PLP, RTI, SEI; D only by CLD, PLP, RTI, SED (so interrupts don't clear D); SED makes ADC/SBC decimal. Decimal ADC/SBC (§2.2.1.2–2.2.2, pp.13–14, page images): BCD result and C defined; **N/V/Z in decimal mode not stated anywhere in the manual**, so it's an open decision (§6).
