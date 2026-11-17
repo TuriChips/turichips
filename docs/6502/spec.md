@@ -10,6 +10,7 @@ Sources for §10 (bitsavers, fetched to a scratch dir, never committed):
 
 ## 1. Scope
 - The **NMOS 6502 CPU**, cycle-accurate at its pins: every clock cycle's address, data direction, R/W and SYNC is specified (§4), including the "dummy" bus cycles the real part makes. Those are visible at the pins, and real software and hardware depend on some of them.
+- **Revision** (*Decision*): the **post-June-1976 NMOS 6502, with ROR**. The Hardware Manual (A-7) notes "The ROR instruction will be available on MCS650X microprocessors after June, 1976". So earlier parts lack ROR, which is why A.1's 1976 list has no ROR A. We specify the version with ROR (ROR A, and ROR in every memory mode) because that's the 6502 later used in the Atari 2600 and NES (roadmap chips #5 and #11).
 - **Not in scope:** the 65C02 and other CMOS variants, the 6507/6510 package variants (the Atari 2600's 6507 is chip #5's business), electrical timing, the two-phase clock's waveforms.
 - Logic convention: positive logic. Active-low pins keep a `_n` suffix (`irq_n`, `nmi_n`, `res_n`), as the 8080 did with `wr_n`.
 - Clock: *Decision.* One rising-edge model clock `clk` per φ2 cycle. Every 6502 cycle is one bus access, read or write [check: no idle bus cycles on the NMOS part].
@@ -111,6 +112,30 @@ A.3.1 Zero page (3):
 | T0 PC opcode | T1 PC+1 ADL | T2 {00, ADL} **W** register | T0 PC+2 |
 |---|---|---|---|
 
+A.3.2 Absolute (4), A-6:
+| T0 PC opcode | T1 PC+1 ADL | T2 PC+2 ADH | T3 {ADH, ADL} **W** | T0 PC+3 |
+|---|---|---|---|---|
+
+A.3.3 (Indirect, X) (6):
+| T0 PC | T1 PC+1 BAL | T2 {00, BAL} (disc.) | T3 {00, BAL+X} ADL | T4 {00, BAL+X+1} ADH | T5 {ADH, ADL} **W** | T0 PC+2 |
+|---|---|---|---|---|---|---|
+
+A.3.4 Absolute,X / Absolute,Y (**always 5**):
+| T0 PC | T1 PC+1 BAL | T2 PC+2 BAH | T3 {BAH (+C), BAL + index} (disc.) | T4 {ADH, ADL} **W** | T0 PC+3 |
+|---|---|---|---|---|---|
+
+A.3.5 Zero page,X / Y (4), A-7:
+| T0 PC | T1 PC+1 BAL | T2 {00, BAL} (disc.) | T3 {00, BAL + index} **W** | T0 PC+2 |
+|---|---|---|---|---|
+
+A.3.6 (Indirect),Y (**always 6**):
+| T0 PC | T1 PC+1 IAL | T2 {00, IAL} BAL | T3 {00, IAL+1} BAH | T4 {**BAH**, BAL + Y} (disc.) | T5 {ADH, ADL} **W** | T0 PC+2 |
+|---|---|---|---|---|---|---|
+
+**This settles the "BAH + C" reading**: A.3.6 writes the discarded read's high byte as plain **BAH**, the uncarried page, while A.3.4 uses the "BAH + C" wording for the same kind of cycle. So the dummy read before an indexed access is at the **uncarried** address, and the reading in A.2.5/A.2.7 is now backed by the manual itself. Still to confirm independently in C8 (§9 item 2).
+
+**A.4 Read-modify-write** (A-7): ASL, DEC, INC, LSR, ROL, ROR. They load the operand, modify it and store the result back at the same address. Tables on A-8 [to transcribe].
+
 ## 5. Reset
 While `res_n` = 0 the CPU is "guaranteed to be in a Read state" (`rw` = 1), and after release it stays in Read until it has fetched the vector (p.126). Then the 7-cycle sequence in §4, and the first opcode fetch in cycle 8. Minimum low time for `res_n`: [check, Hardware Manual].
 *Decisions*: while `res_n` = 0, `rw` = 1, `d_oe` = 0, and `a`/`sync` are not compared. In reset cycles 1 and 2, `a` is not compared (the manual prints "?"). Comparison of everything starts at the first SYNC (cycle 8), **preamble included, with no exemption window**: the C8 preamble writes A, X, Y, S and P before anything reads them, as for the 8080 (Beru, turichips#26).
@@ -155,7 +180,7 @@ Quirks that must each be pinned to a source line before C1 is written:
 
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13 up to about p.92, and *n* + 16 by p.138 (unnumbered inserts), so check the printed number on each rendered page.
-- [ ] §4 per-cycle table from Appendix A (PDF 168–182): A-1 to A-5 transcribed into §4.1 (single-byte; all read modes incl. abs,X/Y, zp,X/Y, (ind),Y; stores begun). Next: A-6 onward. Open reading: "BAH + C" in T3/T4 of indexed reads.
+- [ ] §4 per-cycle table from Appendix A (PDF 168–182): A-1 to A-7 transcribed into §4.1 (single-byte; all read modes incl. abs,X/Y, zp,X/Y, (ind),Y; stores begun). Next: A-6 onward. "BAH + C" reading backed by A.3.6 (dummy read at uncarried BAH). ROR availability note (A-7) → revision decision in §1. Next: A-8.
 - [x] RDY (Hardware Manual §1.4.1.2.8, p.37, page image; offset printed n = PDF n + 13): stops only read cycles; a write in progress completes, and the stop happens at the next read; change in φ1, recognised in the next φ2. Also p.32: "The address bus will always contain known data as detailed in Appendix A", the per-cycle table to read for §4.
 - [x] I and D (§3.2–3.3, pp.26–27, page images): I changed only by BRK, CLI, PLP, RTI, SEI; D only by CLD, PLP, RTI, SED (so interrupts don't clear D); SED makes ADC/SBC decimal. Decimal ADC/SBC (§2.2.1.2–2.2.2, pp.13–14, page images): BCD result and C defined; **N/V/Z in decimal mode not stated anywhere in the manual**, so it's an open decision (§6).
 - [x] Reset (§9.1–9.3, pp.125–127, page images): Read state while reset is low and until the vector is fetched; Example 9.1's 7-cycle start sequence (stack accesses are reads); the only automatic actions are I = 1 and PC ← vector; registers random. Open: minimum reset low time (Hardware Manual), S after the sequence (*Decision*: not compared).
