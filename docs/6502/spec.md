@@ -166,7 +166,7 @@ A.5.2 PLP, PLA (4), A-10:
 A.5.3 JSR (6). The **high byte is fetched after the pushes**:
 | T0 PC | T1 PC+1 ADL | T2 {01, S} (disc.) | T3 {01, S} **W** PCH | T4 {01, S−1} **W** PCL | T5 PC+2 ADH | T0 {ADH, ADL} |
 |---|---|---|---|---|---|---|
-The pushed PC is the address of JSR's last byte (PC+2): the "PC" pushed in T3/T4 is the counter at that point [check value: PC+2, which RTS's +1 relies on].
+The pushed PC is the address of JSR's **last byte (PC+2)**, confirmed by RTS's table (A.5.7: the next fetch is at the pulled PC **+ 1**).
 
 A.5.4 BRK, and IRQ/NMI/RESET (7), A-11:
 | T0 PC opcode (or forced BRK) | T1 **PC+1** (disc.); **PC on a hardware interrupt** | T2 {01, S} **W** PCH | T3 {01, S−1} **W** PCL | T4 {01, S−2} **W** P | T5 FFFE (NMI FFFA, RES FFFC) ADL | T6 FFFF (FFFB, FFFD) ADH | T0 {ADH, ADL} |
@@ -176,6 +176,31 @@ For RESET, T2–T4 are reads, not writes (Programming Manual Example 9.1, §4 ab
 A.5.5 RTI (6):
 | T0 PC | T1 PC+1 (disc.) | T2 {01, S} (disc.) | T3 {01, S+1} P | T4 {01, S+2} PCL | T5 {01, S+3} PCH | T0 {PCH, PCL} |
 |---|---|---|---|---|---|---|
+
+A.5.6.1 JMP absolute (3), A-12:
+| T0 PC | T1 PC+1 ADL | T2 PC+2 ADH | T0 {ADH, ADL} |
+|---|---|---|---|
+
+A.5.6.2 JMP (indirect) (5): matches Programming Manual Example 9.6 (§6).
+| T0 PC | T1 PC+1 IAL | T2 PC+2 IAH | T3 {IAH, IAL} ADL | T4 {IAH, IAL+1} ADH | T0 {ADH, ADL} |
+|---|---|---|---|---|---|
+
+A.5.7 RTS (6):
+| T0 PC | T1 PC+1 (disc.) | T2 {01, S} (disc.) | T3 {01, S+1} PCL | T4 {01, S+2} PCH | T5 {PCH, PCL} (disc.) | T0 {PCH, PCL} **+ 1** |
+|---|---|---|---|---|---|---|
+
+A.5.8 Branches BCC BCS BEQ BMI BNE BPL BVC BVS (2, 3 or 4), A-13:
+| Tn | `a` | data | when |
+|----|-----|------|------|
+| T0 | PC | opcode | always |
+| T1 | PC+1 | offset | always |
+| T2 | {PCH, (PCL + 2 + offset) mod 256}, "PC + 2 + offset (w/o carry)" | opcode (disc.) | only if taken |
+| T3 | PC + 2 + offset, **with** carry | opcode (disc.) | only if taken **and** the page is crossed |
+| T0 | the target (taken) or PC+2 (not taken) | opcode | next instruction |
+
+So a taken branch's first extra cycle reads at the **uncarried** target, the same pattern as the indexed reads above. [check: T2's high byte is PC+2's page, since "w/o carry" names only the low-byte add.]
+
+**Appendix A is fully transcribed.** The remaining §4 work is to turn §4.1 into the comparison table (which pins are compared each cycle, as the 8080's §4) and to add the interrupt-timing rules (§6).
 
 ## 5. Reset
 While `res_n` = 0 the CPU is "guaranteed to be in a Read state" (`rw` = 1), and after release it stays in Read until it has fetched the vector (p.126). Then the 7-cycle sequence in §4, and the first opcode fetch in cycle 8. Minimum low time for `res_n`: [check, Hardware Manual].
@@ -221,7 +246,7 @@ Quirks that must each be pinned to a source line before C1 is written:
 
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13 up to about p.92, and *n* + 16 by p.138 (unnumbered inserts), so check the printed number on each rendered page.
-- [ ] §4 per-cycle table from Appendix A (PDF 168–182): A-1 to A-11 transcribed into §4.1 (single-byte; all read modes incl. abs,X/Y, zp,X/Y, (ind),Y; stores begun). Next: A-6 onward. "BAH + C" reading backed by A.3.6 (dummy read at uncarried BAH). ROR availability note (A-7) → revision decision in §1. A-8 to A-11 done (RMW double write; push/pull, JSR, BRK/interrupts, RTI). Next: A-12 (RTS, JMP, branches).
+- [ ] §4 per-cycle table from Appendix A (PDF 168–182): A-1 to A-13 transcribed into §4.1 (single-byte; all read modes incl. abs,X/Y, zp,X/Y, (ind),Y; stores begun). Next: A-6 onward. "BAH + C" reading backed by A.3.6 (dummy read at uncarried BAH). ROR availability note (A-7) → revision decision in §1. A-8 to A-13 done: RMW double write, push/pull, JSR, BRK/interrupts, RTI, JMP, RTS, branches (uncarried first read on taken branches). **Appendix A complete.**
 - [x] RDY (Hardware Manual §1.4.1.2.8, p.37, page image; offset printed n = PDF n + 13): stops only read cycles; a write in progress completes, and the stop happens at the next read; change in φ1, recognised in the next φ2. Also p.32: "The address bus will always contain known data as detailed in Appendix A", the per-cycle table to read for §4.
 - [x] I and D (§3.2–3.3, pp.26–27, page images): I changed only by BRK, CLI, PLP, RTI, SEI; D only by CLD, PLP, RTI, SED (so interrupts don't clear D); SED makes ADC/SBC decimal. Decimal ADC/SBC (§2.2.1.2–2.2.2, pp.13–14, page images): BCD result and C defined; **N/V/Z in decimal mode not stated anywhere in the manual**, so it's an open decision (§6).
 - [x] Reset (§9.1–9.3, pp.125–127, page images): Read state while reset is low and until the vector is fetched; Example 9.1's 7-cycle start sequence (stack accesses are reads); the only automatic actions are I = 1 and PC ← vector; registers random. Open: minimum reset low time (Hardware Manual), S after the sequence (*Decision*: not compared).
