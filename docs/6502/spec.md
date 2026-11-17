@@ -58,6 +58,22 @@ Vectors: NMI FFFA/FFFB, RESET FFFC/FFFD, IRQ and BRK FFFE/FFFF.
 
   then the opcode fetch at the vector. For BRK itself, cycle 2's address is **PC + 1**, and for a hardware interrupt it's **PC** (Appendix A.5.4, A-11). The pushed PC is PC + 2 for BRK (p.144). **RESET**, after `res_n` rises (Example 9.1, p.127): 7 cycles. 1 and 2 at undefined addresses ("?", "? + 1"), 3–5 at {01,S}, {01,S−1}, {01,S−2} as **reads** ("the read/write line is disabled so that no writes to stack are accomplished"), 6 FFFC, 7 FFFD, then 8 the first opcode at the vector.
 
+### 4.0 What is compared, every cycle
+One model clock = one 6502 cycle, and **every cycle is a bus cycle**: Appendix A lists an address, data and R/W for every Tn of every instruction (A-1: "The address bus will always contain known data", Hardware Manual p.32). So:
+
+| Pin | Compared | Rule |
+|-----|----------|------|
+| `a` | every cycle | the address in the §4.1 row for that cycle, including dummy (disc.) cycles |
+| `rw` | every cycle | 1 on read rows, 0 on **W** rows |
+| `sync` | every cycle | 1 exactly on T0 (opcode fetch) rows, else 0 |
+| `d_oe` | every cycle | = NOT `rw`: 1 exactly on **W** rows |
+| `d_out` | only when `d_oe` = 1 | the value the row writes (register, PCH/PCL/P on pushes, unmodified then modified data on RMW) |
+| `d_in` | (input) | the CPU must use it only on the rows that fetch a value; on (disc.) rows its value must not affect any register or flag |
+
+- **RDY** (`rdy` = 0) holds a **read** cycle. The same row repeats, with the same `a`, `rw` = 1 and `sync`, until `rdy` = 1 at the cycle edge. A write cycle in progress completes, and the hold takes effect at the next read (§2, Hardware Manual p.37).
+- While `res_n` = 0, and in reset cycles 1–2, see §5.
+- **Comparison starts** at the first `sync` after reset (§5) and never pauses after that. There's no exemption window (8080 lesson).
+
 ### 4.1 Per-cycle tables (transcribed from Hardware Manual Appendix A, page images)
 Notation as in Appendix A: `{H, L}` is the address with high byte H and low byte L, and `00, X` is zero page. Every row's data bus is a read (`rw` = 1) unless marked **W**. "(disc.)" means the CPU reads and discards the value: the cycle happens at the pins and is compared. T0 is always the opcode fetch with `sync` = 1, and the next T0 is the next instruction's fetch.
 
@@ -200,7 +216,7 @@ A.5.8 Branches BCC BCS BEQ BMI BNE BPL BVC BVS (2, 3 or 4), A-13:
 
 So a taken branch's first extra cycle reads at the **uncarried** target, the same pattern as the indexed reads above. [check: T2's high byte is PC+2's page, since "w/o carry" names only the low-byte add.]
 
-**Appendix A is fully transcribed.** The remaining §4 work is to turn §4.1 into the comparison table (which pins are compared each cycle, as the 8080's §4) and to add the interrupt-timing rules (§6).
+**Appendix A is fully transcribed.** §4.0 now states the per-cycle comparison rule. Interrupt timing is in §6.
 
 ## 5. Reset
 While `res_n` = 0 the CPU is "guaranteed to be in a Read state" (`rw` = 1), and after release it stays in Read until it has fetched the vector (p.126). Then the 7-cycle sequence in §4, and the first opcode fetch in cycle 8. Minimum low time for `res_n`: [check, Hardware Manual].
