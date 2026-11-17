@@ -13,10 +13,10 @@ Sources for §10 (bitsavers, fetched to a scratch dir, never committed):
 - **Revision** (*Decision*): the **post-June-1976 NMOS 6502, with ROR**. The Hardware Manual (A-7) notes "The ROR instruction will be available on MCS650X microprocessors after June, 1976". So earlier parts lack ROR, which is why A.1's 1976 list has no ROR A. We specify the version with ROR (ROR A, and ROR in every memory mode) because that's the 6502 later used in the Atari 2600 and NES (roadmap chips #5 and #11).
 - **Not in scope:** the 65C02 and other CMOS variants, the 6507/6510 package variants (the Atari 2600's 6507 is chip #5's business), electrical timing, the two-phase clock's waveforms.
 - Logic convention: positive logic. Active-low pins keep a `_n` suffix (`irq_n`, `nmi_n`, `res_n`), as the 8080 did with `wr_n`.
-- Clock: *Decision.* One rising-edge model clock `clk` per φ2 cycle. Every 6502 cycle is one bus access, read or write [check: no idle bus cycles on the NMOS part].
+- Clock: *Decision.* One rising-edge model clock `clk` per φ2 cycle. Every 6502 cycle is one bus access, read or write (confirmed: Appendix A lists an address, data and R/W for every Tn, and Hardware Manual p.32 says "The address bus will always contain known data").
 
 ## 2. Pins (top module `m6502`)
-| Signal | Dir | Width | Meaning [check all against the Hardware Manual] |
+| Signal | Dir | Width | Meaning (each row cites its Hardware Manual page, or is marked) |
 |--------|-----|-------|---------|
 | `clk` | in | 1 | Model clock, one per cycle |
 | `res_n` | in | 1 | RESET, active low |
@@ -77,7 +77,7 @@ One model clock = one 6502 cycle, and **every cycle is a bus cycle**: Appendix A
 ### 4.1 Per-cycle tables (transcribed from Hardware Manual Appendix A, page images)
 Notation as in Appendix A: `{H, L}` is the address with high byte H and low byte L, and `00, X` is zero page. Every row's data bus is a read (`rw` = 1) unless marked **W**. "(disc.)" means the CPU reads and discards the value: the cycle happens at the pins and is compared. T0 is always the opcode fetch with `sync` = 1, and the next T0 is the next instruction's fetch.
 
-**A.1 Single-byte instructions, 2 cycles** (A-2): ASL A, CLC, CLD, CLI, CLV, DEX, DEY, INX, INY, LSR A, NOP, ROL A, SEC, SED, SEI, TAX, TAY, TSX, TXA, TXS, TYA. (ROR A isn't listed: [check] against the instruction list.)
+**A.1 Single-byte instructions, 2 cycles** (A-2): ASL A, CLC, CLD, CLI, CLV, DEX, DEY, INX, INY, LSR A, NOP, ROL A, SEC, SED, SEI, TAX, TAY, TSX, TXA, TXS, TYA. (ROR A isn't listed because "The ROR instruction will be available on MCS650X microprocessors after June, 1976" (A-7). It behaves exactly like the other accumulator-mode shifts, 2 cycles (Appendix B-23), per the §1 revision decision.)
 | Tn | `a` | data | note |
 |----|-----|------|------|
 | T0 | PC | opcode | fetch |
@@ -102,7 +102,7 @@ A.2.4 (Indirect, X) (6):
 | T0 PC opcode | T1 PC+1 BAL | T2 {00, BAL} (disc.) | T3 {00, BAL+X} ADL | T4 {00, BAL+X+1} ADH | T5 {ADH, ADL} data | T0 PC+2 |
 |---|---|---|---|---|---|---|
 
-The zero-page pointer arithmetic stays in page 00 (the manual writes the high byte as 00) [check: wrap of BAL+X+1 at FF, from the 8-bit page-zero rule].
+The zero-page pointer arithmetic stays in page 00. Appendix A writes the high byte of every zero-page access as a literal **00** ("00, BAL + X", "00, BAL + X + 1"), and A.4.3 says outright "BAL + X (without carry)". So BAL + X + 1 = FF + 1 wraps to 00 within page zero.
 
 A.2.5 Absolute,X / Absolute,Y (4, or 5 on a page cross), A-4:
 | T0 PC opcode | T1 PC+1 BAL | T2 PC+2 BAH | T3 {BAH + C, BAL + index} data* | T4* {BAH + 1, BAL + index} data | T0 PC+3 |
@@ -120,7 +120,7 @@ A.2.7 (Indirect),Y (5, or 6 on a page cross), A-5:
 | T0 PC opcode | T1 PC+1 IAL | T2 {00, IAL} BAL | T3 {00, IAL + 1} BAH | T4 {BAH + C, BAL + Y} data* | T5* {BAH + 1, BAL + Y} data | T0 PC+2 |
 |---|---|---|---|---|---|---|
 
-\* Same footnote and the same reading of "BAH + C" as A.2.5. IAL + 1 stays in page 00 [check: IAL = FF].
+\* Same footnote and the same reading of "BAH + C" as A.2.5. IAL + 1 stays in page 00 ("00, IAL + 1", the same literal-00 rule), so IAL = FF reads BAH from 0000.
 
 **A.3 Stores** (A-5): STA, STX, STY. "The fetch of data is replaced by a WRITE (R/W = 0) cycle. No overlapping occurs and **no shortening of the instruction time occurs on indexing operations**": indexed stores always take the page-cross cycle count.
 
@@ -214,7 +214,7 @@ A.5.8 Branches BCC BCS BEQ BMI BNE BPL BVC BVS (2, 3 or 4), A-13:
 | T3 | PC + 2 + offset, **with** carry | opcode (disc.) | only if taken **and** the page is crossed |
 | T0 | the target (taken) or PC+2 (not taken) | opcode | next instruction |
 
-So a taken branch's first extra cycle reads at the **uncarried** target, the same pattern as the indexed reads above. [check: T2's high byte is PC+2's page, since "w/o carry" names only the low-byte add.]
+So a taken branch's first extra cycle reads at the **uncarried** target, the same pattern as the indexed reads above. T2's high byte is PC+2's page: the manual writes T2 as "PC + 2 + offset (w/o carry)" and T3 as "with carry", and they differ only when the carry would change the page.
 
 **Appendix A is fully transcribed.** §4.0 now states the per-cycle comparison rule. Interrupt timing is in §6.
 
