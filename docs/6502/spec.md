@@ -57,6 +57,36 @@ Vectors: NMI FFFA/FFFB, RESET FFFC/FFFD, IRQ and BRK FFFE/FFFF.
 
   then the opcode fetch at the vector. For BRK itself, cycle 2's address is PC + 1 and the pushed PC is PC + 2 (p.144) [check: BRK's own cycle table]. **RESET**, after `res_n` rises (Example 9.1, p.127): 7 cycles. 1 and 2 at undefined addresses ("?", "? + 1"), 3–5 at {01,S}, {01,S−1}, {01,S−2} as **reads** ("the read/write line is disabled so that no writes to stack are accomplished"), 6 FFFC, 7 FFFD, then 8 the first opcode at the vector.
 
+### 4.1 Per-cycle tables (transcribed from Hardware Manual Appendix A, page images)
+Notation as in Appendix A: `{H, L}` is the address with high byte H and low byte L, and `00, X` is zero page. Every row's data bus is a read (`rw` = 1) unless marked **W**. "(disc.)" means the CPU reads and discards the value: the cycle happens at the pins and is compared. T0 is always the opcode fetch with `sync` = 1, and the next T0 is the next instruction's fetch.
+
+**A.1 Single-byte instructions, 2 cycles** (A-2): ASL A, CLC, CLD, CLI, CLV, DEX, DEY, INX, INY, LSR A, NOP, ROL A, SEC, SED, SEI, TAX, TAY, TSX, TXA, TXS, TYA. (ROR A isn't listed: [check] against the instruction list.)
+| Tn | `a` | data | note |
+|----|-----|------|------|
+| T0 | PC | opcode | fetch |
+| T1 | PC+1 | opcode (disc.) | the next instruction's opcode is read and ignored |
+| T0 | PC+1 | opcode | next instruction |
+
+**A.2 Internal execution on memory data** (A-2): ADC, AND, BIT, CMP, CPX, CPY, EOR, LDA, LDX, LDY, ORA, SBC. The result is formed while the next opcode is fetched.
+
+A.2.1 Immediate (2 cycles), A-3:
+| T0 PC opcode | T1 PC+1 data | T0 PC+2 next opcode |
+|---|---|---|
+
+A.2.2 Zero page (3):
+| T0 PC opcode | T1 PC+1 ADL | T2 {00, ADL} data | T0 PC+2 |
+|---|---|---|---|
+
+A.2.3 Absolute (4):
+| T0 PC opcode | T1 PC+1 ADL | T2 PC+2 ADH | T3 {ADH, ADL} data | T0 PC+3 |
+|---|---|---|---|---|
+
+A.2.4 (Indirect, X) (6):
+| T0 PC opcode | T1 PC+1 BAL | T2 {00, BAL} (disc.) | T3 {00, BAL+X} ADL | T4 {00, BAL+X+1} ADH | T5 {ADH, ADL} data | T0 PC+2 |
+|---|---|---|---|---|---|---|
+
+The zero-page pointer arithmetic stays in page 00 (the manual writes the high byte as 00) [check: wrap of BAL+X+1 at FF, from the 8-bit page-zero rule].
+
 ## 5. Reset
 While `res_n` = 0 the CPU is "guaranteed to be in a Read state" (`rw` = 1), and after release it stays in Read until it has fetched the vector (p.126). Then the 7-cycle sequence in §4, and the first opcode fetch in cycle 8. Minimum low time for `res_n`: [check, Hardware Manual].
 *Decisions*: while `res_n` = 0, `rw` = 1, `d_oe` = 0, and `a`/`sync` are not compared. In reset cycles 1 and 2, `a` is not compared (the manual prints "?"). Comparison of everything starts at the first SYNC (cycle 8), **preamble included, with no exemption window**: the C8 preamble writes A, X, Y, S and P before anything reads them, as for the 8080 (Beru, turichips#26).
@@ -101,7 +131,7 @@ Quirks that must each be pinned to a source line before C1 is written:
 
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13 up to about p.92, and *n* + 16 by p.138 (unnumbered inserts), so check the printed number on each rendered page.
-- [ ] §4 per-cycle table: Appendix A located (PDF 168–182; A-1 read: definitions, RDY on writes, every instruction starts at T0 with the opcode fetch). Transcription of A-2 onward is next.
+- [ ] §4 per-cycle table from Appendix A (PDF 168–182): A-1, A-2, A-3 transcribed into §4.1 (single-byte; immediate, zero page, absolute, (ind,X) reads). Next: A-4 onward.
 - [x] RDY (Hardware Manual §1.4.1.2.8, p.37, page image; offset printed n = PDF n + 13): stops only read cycles; a write in progress completes, and the stop happens at the next read; change in φ1, recognised in the next φ2. Also p.32: "The address bus will always contain known data as detailed in Appendix A", the per-cycle table to read for §4.
 - [x] I and D (§3.2–3.3, pp.26–27, page images): I changed only by BRK, CLI, PLP, RTI, SEI; D only by CLD, PLP, RTI, SED (so interrupts don't clear D); SED makes ADC/SBC decimal. Decimal ADC/SBC (§2.2.1.2–2.2.2, pp.13–14, page images): BCD result and C defined; **N/V/Z in decimal mode not stated anywhere in the manual**, so it's an open decision (§6).
 - [x] Reset (§9.1–9.3, pp.125–127, page images): Read state while reset is low and until the vector is fetched; Example 9.1's 7-cycle start sequence (stack accesses are reads); the only automatic actions are I = 1 and PC ← vector; registers random. Open: minimum reset low time (Hardware Manual), S after the sequence (*Decision*: not compared).
