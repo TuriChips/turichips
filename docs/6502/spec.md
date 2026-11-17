@@ -87,6 +87,30 @@ A.2.4 (Indirect, X) (6):
 
 The zero-page pointer arithmetic stays in page 00 (the manual writes the high byte as 00) [check: wrap of BAL+X+1 at FF, from the 8-bit page-zero rule].
 
+A.2.5 Absolute,X / Absolute,Y (4, or 5 on a page cross), A-4:
+| T0 PC opcode | T1 PC+1 BAL | T2 PC+2 BAH | T3 {BAH + C, BAL + index} data* | T4* {BAH + 1, BAL + index} data | T0 PC+3 |
+|---|---|---|---|---|---|
+
+\* "If the page boundary is crossed in the indexing operation, the data fetched in T3 is ignored. If page boundary is not crossed, the T4 cycle is bypassed." The manual writes T3's high byte as "BAH + C … Carry is 0 or 1 as required from previous add". **Reading** (*Decision* pending [check] against an independent per-cycle source, §9 item 2): on a page cross, T3's address is the **uncarried** {BAH, (BAL + index) mod 256}, and T4 is {BAH + 1, (BAL + index) mod 256}. That's the only reading in which T4 is needed.
+
+A.2.6 Zero page,X / Zero page,Y (4), A-4:
+| T0 PC opcode | T1 PC+1 BAL | T2 {00, BAL} (disc.) | T3 {00, BAL + index} data | T0 PC+2 |
+|---|---|---|---|---|
+
+"No page crossing": the index add stays in page 00 (wraps mod 256).
+
+A.2.7 (Indirect),Y (5, or 6 on a page cross), A-5:
+| T0 PC opcode | T1 PC+1 IAL | T2 {00, IAL} BAL | T3 {00, IAL + 1} BAH | T4 {BAH + C, BAL + Y} data* | T5* {BAH + 1, BAL + Y} data | T0 PC+2 |
+|---|---|---|---|---|---|---|
+
+\* Same footnote and the same reading of "BAH + C" as A.2.5. IAL + 1 stays in page 00 [check: IAL = FF].
+
+**A.3 Stores** (A-5): STA, STX, STY. "The fetch of data is replaced by a WRITE (R/W = 0) cycle. No overlapping occurs and **no shortening of the instruction time occurs on indexing operations**": indexed stores always take the page-cross cycle count.
+
+A.3.1 Zero page (3):
+| T0 PC opcode | T1 PC+1 ADL | T2 {00, ADL} **W** register | T0 PC+2 |
+|---|---|---|---|
+
 ## 5. Reset
 While `res_n` = 0 the CPU is "guaranteed to be in a Read state" (`rw` = 1), and after release it stays in Read until it has fetched the vector (p.126). Then the 7-cycle sequence in §4, and the first opcode fetch in cycle 8. Minimum low time for `res_n`: [check, Hardware Manual].
 *Decisions*: while `res_n` = 0, `rw` = 1, `d_oe` = 0, and `a`/`sync` are not compared. In reset cycles 1 and 2, `a` is not compared (the manual prints "?"). Comparison of everything starts at the first SYNC (cycle 8), **preamble included, with no exemption window**: the C8 preamble writes A, X, Y, S and P before anything reads them, as for the 8080 (Beru, turichips#26).
@@ -131,7 +155,7 @@ Quirks that must each be pinned to a source line before C1 is written:
 
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13 up to about p.92, and *n* + 16 by p.138 (unnumbered inserts), so check the printed number on each rendered page.
-- [ ] §4 per-cycle table from Appendix A (PDF 168–182): A-1, A-2, A-3 transcribed into §4.1 (single-byte; immediate, zero page, absolute, (ind,X) reads). Next: A-4 onward.
+- [ ] §4 per-cycle table from Appendix A (PDF 168–182): A-1 to A-5 transcribed into §4.1 (single-byte; all read modes incl. abs,X/Y, zp,X/Y, (ind),Y; stores begun). Next: A-6 onward. Open reading: "BAH + C" in T3/T4 of indexed reads.
 - [x] RDY (Hardware Manual §1.4.1.2.8, p.37, page image; offset printed n = PDF n + 13): stops only read cycles; a write in progress completes, and the stop happens at the next read; change in φ1, recognised in the next φ2. Also p.32: "The address bus will always contain known data as detailed in Appendix A", the per-cycle table to read for §4.
 - [x] I and D (§3.2–3.3, pp.26–27, page images): I changed only by BRK, CLI, PLP, RTI, SEI; D only by CLD, PLP, RTI, SED (so interrupts don't clear D); SED makes ADC/SBC decimal. Decimal ADC/SBC (§2.2.1.2–2.2.2, pp.13–14, page images): BCD result and C defined; **N/V/Z in decimal mode not stated anywhere in the manual**, so it's an open decision (§6).
 - [x] Reset (§9.1–9.3, pp.125–127, page images): Read state while reset is low and until the vector is fetched; Example 9.1's 7-cycle start sequence (stack accesses are reads); the only automatic actions are I = 1 and PC ← vector; registers random. Open: minimum reset low time (Hardware Manual), S after the sequence (*Decision*: not compared).
