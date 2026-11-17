@@ -3,7 +3,8 @@
 The seat tokens come from `claude setup-token`, which can't read Anthropic's usage API (no user:profile scope).
 Instead, every Claude Code run prints a `rate_limit_event` in stream-json output with the seat's 5-hour and
 7-day utilization; runner.py hands it to record(). Today's turns/tokens/cost are summed from each run's result.
-A seat with no run for STALE_SECONDS gets a tiny Haiku probe so its numbers stay fresh.
+A seat with no run for STALE_SECONDS gets a tiny Haiku probe so its numbers stay fresh. Seats that run no agents
+(USAGE_ONLY_SEATS in config.py) are only ever measured by probes, so their "today" counts are probe runs only.
 """
 import asyncio
 import json
@@ -12,13 +13,13 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import db
-from config import AGENTS, SYSTEM
+from config import AGENTS, SYSTEM, USAGE_ONLY_SEATS
 
 IST = timezone(timedelta(hours=5, minutes=30))
 STALE_SECONDS = 30 * 60
 WARN_AT = 0.9
 WINDOWS = ("five_hour", "seven_day")
-SEATS = sorted({v["account"] for v in AGENTS.values() if v.get("account")})
+SEATS = sorted({v["account"] for v in AGENTS.values() if v.get("account")} | set(USAGE_ONLY_SEATS))
 
 
 def _today() -> str:
@@ -68,7 +69,8 @@ def record(seat: str, rate_info: dict | None, result: dict | None):
 
 
 def _agents_on(seat):
-    return [v["name"] for v in AGENTS.values() if v.get("account") == seat]
+    names = [v["name"] for v in AGENTS.values() if v.get("account") == seat]
+    return names or [USAGE_ONLY_SEATS.get(seat, "no agents")]
 
 
 def _warn(seat, wins):

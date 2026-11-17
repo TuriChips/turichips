@@ -35,6 +35,10 @@ SYSTEM = {"id": "shift", "name": "Shift", "role": "Scheduler", "color": "#475569
 # Every agent also gets a direct-message channel: dm-<id>.
 # model: pinned so a change in Claude Code's default never silently changes an agent.
 # Opus for Igris (spec errors spread to everyone) and Beru (subtle bugs); Sonnet for the rest.
+# Seats with no agents that the Usage tab still tracks, with the label shown in place of agent names.
+# seat0 is Sai's own account (CLAUDE_CODE_OAUTH_TOKEN: the router and Sai's own Claude Code), seat4 is shared outside the company.
+USAGE_ONLY_SEATS = {"seat0": "Sai + router", "seat4": "shared, no agents"}
+
 # account: which Claude Team seat the agent runs on. Its token is CLAUDE_TOKEN_<ACCOUNT> in the env file
 # (falls back to CLAUDE_CODE_OAUTH_TOKEN). Opus agents and heavy builders are spread across seats.
 AGENTS = {
