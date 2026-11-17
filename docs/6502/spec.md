@@ -134,7 +134,30 @@ A.3.6 (Indirect),Y (**always 6**):
 
 **This settles the "BAH + C" reading**: A.3.6 writes the discarded read's high byte as plain **BAH**, the uncarried page, while A.3.4 uses the "BAH + C" wording for the same kind of cycle. So the dummy read before an indexed access is at the **uncarried** address, and the reading in A.2.5/A.2.7 is now backed by the manual itself. Still to confirm independently in C8 (§9 item 2).
 
-**A.4 Read-modify-write** (A-7): ASL, DEC, INC, LSR, ROL, ROR. They load the operand, modify it and store the result back at the same address. Tables on A-8 [to transcribe].
+**A.4 Read-modify-write** (A-7): ASL, DEC, INC, LSR, ROL, ROR. They load the operand, modify it and store the result back at the same address. **Every mode writes twice: first the unmodified value, then the modified value** (A-8/A-9, R/W = 0 in both cycles). This is visible at the pins and compared.
+
+A.4.1 Zero page (5), A-8:
+| T0 PC | T1 PC+1 ADL | T2 {00, ADL} data | T3 {00, ADL} **W** data (unmodified) | T4 {00, ADL} **W** modified | T0 PC+2 |
+|---|---|---|---|---|---|
+
+A.4.2 Absolute (6):
+| T0 PC | T1 PC+1 ADL | T2 PC+2 ADH | T3 {ADH, ADL} data | T4 {ADH, ADL} **W** data | T5 {ADH, ADL} **W** modified | T0 PC+3 |
+|---|---|---|---|---|---|---|
+
+A.4.3 Zero page,X (6): the manual writes "BAL + X **(without carry)**" for T3–T5, so the address stays in page 00.
+| T0 PC | T1 PC+1 BAL | T2 {00, BAL} (disc.) | T3 {00, BAL+X} data | T4 {00, BAL+X} **W** data | T5 {00, BAL+X} **W** modified | T0 PC+2 |
+|---|---|---|---|---|---|---|
+
+A.4.4 Absolute,X (**always 7**), A-9:
+| T0 PC | T1 PC+1 BAL | T2 PC+2 BAH | T3 {BAH (+C), BAL+X} (disc.) | T4 {ADH, ADL} data | T5 {ADH, ADL} **W** data | T6 {ADH, ADL} **W** modified | T0 PC+3 |
+|---|---|---|---|---|---|---|---|
+T3 is the same dummy-read cycle as A.3.4, at the uncarried address per A.3.6.
+
+**A.5 Miscellaneous** (A-9): branches, BRK, JMP, JSR, PHA, PHP, PLA, PLP, RTI, RTS.
+
+A.5.1 PHP, PHA (3): "Stack Ptr." = {01, S}; S decrements after the write [check: the S update isn't printed on A-9].
+| T0 PC | T1 PC+1 opcode (disc.) | T2 {01, S} **W** register | T0 PC+1 |
+|---|---|---|---|
 
 ## 5. Reset
 While `res_n` = 0 the CPU is "guaranteed to be in a Read state" (`rw` = 1), and after release it stays in Read until it has fetched the vector (p.126). Then the 7-cycle sequence in §4, and the first opcode fetch in cycle 8. Minimum low time for `res_n`: [check, Hardware Manual].
@@ -180,7 +203,7 @@ Quirks that must each be pinned to a source line before C1 is written:
 
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13 up to about p.92, and *n* + 16 by p.138 (unnumbered inserts), so check the printed number on each rendered page.
-- [ ] §4 per-cycle table from Appendix A (PDF 168–182): A-1 to A-7 transcribed into §4.1 (single-byte; all read modes incl. abs,X/Y, zp,X/Y, (ind),Y; stores begun). Next: A-6 onward. "BAH + C" reading backed by A.3.6 (dummy read at uncarried BAH). ROR availability note (A-7) → revision decision in §1. Next: A-8.
+- [ ] §4 per-cycle table from Appendix A (PDF 168–182): A-1 to A-9 transcribed into §4.1 (single-byte; all read modes incl. abs,X/Y, zp,X/Y, (ind),Y; stores begun). Next: A-6 onward. "BAH + C" reading backed by A.3.6 (dummy read at uncarried BAH). ROR availability note (A-7) → revision decision in §1. A-8/A-9 done (RMW double write confirmed; pushes). Next: A-10.
 - [x] RDY (Hardware Manual §1.4.1.2.8, p.37, page image; offset printed n = PDF n + 13): stops only read cycles; a write in progress completes, and the stop happens at the next read; change in φ1, recognised in the next φ2. Also p.32: "The address bus will always contain known data as detailed in Appendix A", the per-cycle table to read for §4.
 - [x] I and D (§3.2–3.3, pp.26–27, page images): I changed only by BRK, CLI, PLP, RTI, SEI; D only by CLD, PLP, RTI, SED (so interrupts don't clear D); SED makes ADC/SBC decimal. Decimal ADC/SBC (§2.2.1.2–2.2.2, pp.13–14, page images): BCD result and C defined; **N/V/Z in decimal mode not stated anywhere in the manual**, so it's an open decision (§6).
 - [x] Reset (§9.1–9.3, pp.125–127, page images): Read state while reset is low and until the vector is fetched; Example 9.1's 7-cycle start sequence (stack accesses are reads); the only automatic actions are I = 1 and PC ← vector; registers random. Open: minimum reset low time (Hardware Manual), S after the sequence (*Decision*: not compared).
