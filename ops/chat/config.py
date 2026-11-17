@@ -40,8 +40,8 @@ SYSTEM = {"id": "shift", "name": "Shift", "role": "Scheduler", "color": "#475569
 AGENTS = {
     "igris":  {"name": "Igris",  "file": "architect",       "role": "Architect",                         "model": "claude-opus-5-5", "account": "seat1", "color": "#7c3aed"},
     "zura":  {"name": "Zura",  "file": "designer-a",      "role": "Designer A (control)",              "model": "claude-sonnet-5-5", "account": "seat3", "color": "#2563eb"},
-    "ada":  {"name": "Ada",  "file": "designer-b",      "role": "Designer B (data)",                 "model": "claude-sonnet-5-5", "account": "seat4", "color": "#0891b2"},
-    "titus": {"name": "Titus", "file": "verification-a",  "role": "Verification A (test builder)",     "model": "claude-sonnet-5-5", "account": "seat4", "color": "#059669"},
+    "ada":  {"name": "Ada",  "file": "designer-b",      "role": "Designer B (data)",                 "model": "claude-sonnet-5-5", "account": "seat2", "color": "#0891b2"},
+    "titus": {"name": "Titus", "file": "verification-a",  "role": "Verification A (test builder)",     "model": "claude-sonnet-5-5", "account": "seat3", "color": "#059669"},
     "beru":  {"name": "Beru",  "file": "verification-b",  "role": "Verification B (breaker)",          "model": "claude-opus-5-5", "account": "seat2", "color": "#dc2626"},
     "tesla":  {"name": "Tesla",  "file": "infrastructure",  "role": "Infrastructure",                    "model": "claude-sonnet-5-5", "account": "seat1", "color": "#64748b"},
     "leo": {"name": "Leo", "file": "physical-design", "role": "Physical Design",                   "model": "claude-sonnet-5-5", "account": "seat3", "color": "#d97706"},

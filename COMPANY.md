@@ -106,6 +106,7 @@ Append-only. Date, decision, why.
 - 2026-11-13: Finish lines set: main goal is a RISC-V CPU, bigger vision is an ML accelerator. Verilator for simulation, no FPGA.
 - 2026-11-13: Agents named, each with a personality: Igris, Zura, Ada, Titus, Beru, Tesla, Leo, Homer.
 - 2026-11-13: Each pair of agents runs on its own Claude Team seat: seat1 Igris+Tesla, seat2 Beru+Homer, seat3 Zura+Leo, seat4 Ada+Titus (the Opus agents and the heavy builders are spread out). Confirmed with Anthropic that this is fine.
+- 2026-11-17: seat4 is shared outside the company and kept running out, so Ada moved to seat2 and Titus to seat3. seat4 runs no agents now.
 - 2026-11-13: Models pinned per agent: Opus 5.5 for Igris (spec errors spread to everyone) and Beru (subtle bugs), Sonnet 5.5 for the rest.
 - 2026-11-13: Two phases: historic rebuilds first, then our own designs in families (R family = RISC-V, M family = ML) built from a shared block library.
 - 2026-11-13: Simulation only, no manufacturing. Chips are rebuilt in historical order across four tracks: CPUs → retro machines → graphics → ML.
