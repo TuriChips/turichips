@@ -247,7 +247,15 @@ While `res_n` = 0 the CPU is "guaranteed to be in a Read state" (`rw` = 1), and 
 | E | CPX # | SBC (zp,X) | · | · | CPX zp | SBC zp | INC zp | · | INX | SBC # | NOP | · | CPX abs | SBC abs | INC abs | · |
 | F | BEQ rel | SBC (zp),Y | · | · | · | SBC zp,X | INC zp,X | · | SED | SBC abs,Y | · | · | · | SBC abs,X | INC abs,X | · |
 
-Per-opcode cycles, bytes and flags come next from Appendix B (one instruction per half page, PDF ~198–225).
+### 6.1 Instructions (Programming Manual Appendix B, "Instruction List Alphabetic by Mnemonic", B-3 onward = PDF 200 onward, page images)
+Cycle counts per addressing mode follow §4.1 (Appendix A). **Where Appendix B's cycle column and Appendix A's tables disagree, Appendix A governs**, because it lists every cycle, and the disagreement is noted below. "+p" = one more cycle if the indexed address crosses a page (reads only; stores and RMW always take the long count, §4.1).
+
+| Mnemonic | Operation | N Z C I D V | Modes (opcode, cycles) |
+|----------|-----------|-------------|------------------------|
+| ADC | A + M + C → A, C | ✓ ✓ ✓ – – ✓ | # 69 2 · zp 65 3 · zp,X 75 4 · abs 6D 4 · abs,X 7D 4+p · abs,Y 79 4+p · (zp,X) 61 6 · (zp),Y 71 5+p |
+| AND | A ∧ M → A | ✓ ✓ – – – – | # 29 2 · zp 25 3 · zp,X 35 4 · abs 2D 4 · abs,X 3D 4+p · abs,Y 39 4+p · (zp,X) 21 6 · (zp),Y 31 5+p (B-3 prints "5" without the asterisk; A.2.7 gives 6 on a page cross, so A governs) |
+
+Remaining mnemonics: transcription continues from B-4.
  Each will get an exact table row (encoding, addressing mode, cycles, flags), as the 8080's §6.1.
 
 Quirks that must each be pinned to a source line before C1 is written:
@@ -295,6 +303,7 @@ Quirks that must each be pinned to a source line before C1 is written:
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13 up to about p.92, and *n* + 16 by p.138 (unnumbered inserts), so check the printed number on each rendered page.
 - [ ] §4 per-cycle table from Appendix A (PDF 168–182): A-1 to A-13 transcribed into §4.1 (single-byte; all read modes incl. abs,X/Y, zp,X/Y, (ind),Y; stores begun). Next: A-6 onward. "BAH + C" reading backed by A.3.6 (dummy read at uncarried BAH). ROR availability note (A-7) → revision decision in §1. A-8 to A-13 done: RMW double write, push/pull, JSR, BRK/interrupts, RTI, JMP, RTS, branches (uncarried first read on taken branches). **Appendix A complete.**
+- [ ] Appendix B (B-3 onward, PDF 200+): ADC, AND transcribed into §6.1 (flags; AND (zp),Y "5" without asterisk vs A.2.7, Appendix A governs). Next: B-4.
 - [x] Opcode set: Appendix D (D-2 to D-5, page images) lists 151 documented opcodes, 56 mnemonics, 13 addressing modes; 105 bytes are "Future Expansion". ROR is listed (66/6A/6E/76/7E), consistent with the §1 revision decision. Counted by script from a transcription of all 256 entries.
 - [x] §9 Dormann functional test licence: GPL-3.0-or-later (file header, read 2026-11-17); NMOS documented behaviour only; decimal with valid BCD only, N/V/Z ignored. Bruce Clark decimal test: public domain (header), N/V/Z checks optional with NMOS prediction. SingleStepTests 65x02: MIT, emulator-generated, not hardware-verified, so a cross-check only.
 - [x] IRQ/NMI (Hardware Manual pp.25, 38, page images): IRQ level-sensitive and recognised after the current instruction completes; NMI edge-triggered, ≥ 2 cycles low, recognised after the current instruction; I set in the last cycle before the interrupt software. Branch delay, NMI-hijacks-BRK and IRQ/NMI priority are **not** documented, so §6 proposes not specifying them and keeping stimulus away.
