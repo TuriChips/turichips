@@ -262,7 +262,14 @@ Cycle counts per addressing mode follow §4.1 (Appendix A). **Where Appendix B's
 | BIT | A ∧ M; Z ← (A ∧ M = 0); **N ← M7, V ← M6** | M7 ✓ – – – M6 | zp 24 3 · abs 2C 4 |
 | BMI | branch if N = 1 | – – – – – – | rel 30 2 (+1 / +2) |
 
-Remaining mnemonics: transcription continues from B-7. Branch cycle notes on B-4 to B-6 say "+1 if branch occurs to same page, +2 if … to different page" (B-5 says "next page", the same meaning), matching A.5.8.
+| BNE | branch if Z = 0 | – – – – – – | rel D0 2 (+1 / +2) |
+| BPL | branch if N = 0 | – – – – – – | rel 10 2 (+1 / +2) |
+| BRK | forced interrupt: PC + 2 ↓, P ↓, PC ← (FFFE) | – – – **1** – – | impl 00 7. "A BRK command cannot be masked by setting I" (B-8) |
+| BVC | branch if V = 0 | – – – – – – | rel 50 2 (+1 / +2) |
+| BVS | branch if V = 1 | – – – – – – | rel 70 2 (+1 / +2) |
+| CLC | 0 → C | – – 0 – – – | impl 18 2 |
+
+Remaining mnemonics: transcription continues from B-10. Branch cycle notes on B-4 to B-6 say "+1 if branch occurs to same page, +2 if … to different page" (B-5 says "next page", the same meaning), matching A.5.8.
  Each will get an exact table row (encoding, addressing mode, cycles, flags), as the 8080's §6.1.
 
 Quirks that must each be pinned to a source line before C1 is written:
@@ -274,7 +281,7 @@ Quirks that must each be pinned to a source line before C1 is written:
     - **(b)** Specify only A and C in decimal mode, make C5 test only those, and keep C8's generator in binary mode (D = 0 always). N/V/Z after decimal ADC/SBC become "not specified, never tested". That's simpler, but a real-software difference could go unseen.
     - **(c)** Pick a clean rule of our own (e.g. N and Z from the BCD result, V as in binary) and test it. That's easy to specify, but deliberately unlike the real chip.
   - My recommendation is **(a)**, because the lab rebuilds the real chip. But it rests on a secondary source, so it's Sai's call.
-- **The B flag and BRK** (confirmed §10, Programming Manual §9.11, p.144): BRK pushes the address of the **second byte after BRK** (PC + 2) and P, then loads PC from FFFE/FFFF. In the pushed P, **B (bit 4, the manual's `AND #$10`) is 1 for BRK and 0 for an IRQ**. **BRK sets I** (confirmed §10): an interrupt is serviced by **forcing a BRK** (Example 9.2, p.131, cycle 2: "Force a BRK Instruction"), and that shared sequence does "Vector Low → PCL and Set I" in cycle 7. The text adds that "the interrupt disable is turned on at this point by the microprocessor automatically". So p.144's "changes no values in either the registers or the flags" is read as "no register or arithmetic flag other than I". This is *Decision* wording, built on the p.131 table. Still [check]: B for PHP and NMI.
+- **The B flag and BRK** (confirmed §10, Programming Manual §9.11, p.144): BRK pushes the address of the **second byte after BRK** (PC + 2) and P, then loads PC from FFFE/FFFF. In the pushed P, **B (bit 4, the manual's `AND #$10`) is 1 for BRK and 0 for an IRQ**. **BRK sets I** (confirmed §10): an interrupt is serviced by **forcing a BRK** (Example 9.2, p.131, cycle 2: "Force a BRK Instruction"), and that shared sequence does "Vector Low → PCL and Set I" in cycle 7. The text adds that "the interrupt disable is turned on at this point by the microprocessor automatically". **Stated directly in Appendix B-8**: BRK's flag row is `N Z C I D V = – – – 1 – –`, so BRK sets I. p.144's "changes no values in either the registers or the flags" therefore means "none other than I". No decision is needed. Still [check]: B for PHP and NMI.
 - **Interrupt timing**, what MOS documents (confirmed §10, Hardware Manual §1.3.2.5 p.25, §1.4.1.2.9–10 p.38, page images):
   - **IRQ** is level-sensitive. The CPU is interrupted while `irq_n` = 0 and I = 0, after it "completes the instruction currently being executed", so the line must be held low until then. I is set "during the last cycle before the processor begins executing the interrupt software".
   - **NMI** "always interrupts the processor after it completes the instruction currently being executed". It's edge-triggered (a high-to-low transition), must stay low "for at least two clock cycles" to be recognised, and isn't recognised again until the line goes high and then low.
@@ -310,7 +317,7 @@ Quirks that must each be pinned to a source line before C1 is written:
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13 up to about p.92, and *n* + 16 by p.138 (unnumbered inserts), so check the printed number on each rendered page.
 - [ ] §4 per-cycle table from Appendix A (PDF 168–182): A-1 to A-13 transcribed into §4.1 (single-byte; all read modes incl. abs,X/Y, zp,X/Y, (ind),Y; stores begun). Next: A-6 onward. "BAH + C" reading backed by A.3.6 (dummy read at uncarried BAH). ROR availability note (A-7) → revision decision in §1. A-8 to A-13 done: RMW double write, push/pull, JSR, BRK/interrupts, RTI, JMP, RTS, branches (uncarried first read on taken branches). **Appendix A complete.**
-- [ ] Appendix B (B-3 onward, PDF 200+): ADC to BMI transcribed into §6.1 (B-3 to B-6; AND (zp),Y "5" without asterisk vs A.2.7, Appendix A governs). Next: B-7.
+- [ ] Appendix B (B-3 onward, PDF 200+): ADC to CLC transcribed into §6.1 (B-3 to B-9; BRK's flag row I = 1 on B-8 confirms BRK sets I; AND (zp),Y "5" without asterisk vs A.2.7, Appendix A governs). Next: B-10.
 - [x] Opcode set: Appendix D (D-2 to D-5, page images) lists 151 documented opcodes, 56 mnemonics, 13 addressing modes; 105 bytes are "Future Expansion". ROR is listed (66/6A/6E/76/7E), consistent with the §1 revision decision. Counted by script from a transcription of all 256 entries.
 - [x] §9 Dormann functional test licence: GPL-3.0-or-later (file header, read 2026-11-17); NMOS documented behaviour only; decimal with valid BCD only, N/V/Z ignored. Bruce Clark decimal test: public domain (header), N/V/Z checks optional with NMOS prediction. SingleStepTests 65x02: MIT, emulator-generated, not hardware-verified, so a cross-check only.
 - [x] IRQ/NMI (Hardware Manual pp.25, 38, page images): IRQ level-sensitive and recognised after the current instruction completes; NMI edge-triggered, ≥ 2 cycles low, recognised after the current instruction; I set in the last cycle before the interrupt software. Branch delay, NMI-hijacks-BRK and IRQ/NMI priority are **not** documented, so §6 proposes not specifying them and keeping stimulus away.
