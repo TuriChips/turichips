@@ -297,7 +297,15 @@ Cycle counts per addressing mode follow §4.1 (Appendix A). **Where Appendix B's
 | PHP | P ↓ | – – – – – – | impl 08 3 (the pushed B bit: [check], §6) |
 | PLA | A ↑ | ✓ ✓ – – – – | impl 68 4 |
 
-Remaining mnemonics: transcription continues from B-22. Branch cycle notes on B-4 to B-6 say "+1 if branch occurs to same page, +2 if … to different page" (B-5 says "next page", the same meaning), matching A.5.8.
+| PLP | P ↑ | from stack | impl 28 4 |
+| ROL | C ← [7…0] ← C | ✓ ✓ ✓ – – – | A 2A 2 · zp 26 5 · zp,X 36 6 · abs 2E 6 · abs,X 3E 7 |
+| ROR | C → [7…0] → C | ✓ ✓ ✓ – – – | A 6A 2 · zp 66 5 · zp,X 76 6 · abs 6E 6 · abs,X 7E 7 (B-23 repeats "available … after June, 1976"; §1 revision decision) |
+| RTI | P ↑, PC ↑ | from stack | impl 40 6 |
+| RTS | PC ↑, PC + 1 → PC | – – – – – – | impl 60 6 |
+| SBC | A − M − C̄ → A (C̄ = borrow) | ✓ ✓ ✓ – – ✓ | # E9 2 · zp E5 3 · zp,X F5 4 · abs ED 4 · abs,X FD 4+p · abs,Y F9 4+p · (zp,X) E1 6 · (zp),Y F1 5+p |
+| SEC | 1 → C | – – 1 – – – | impl 38 2 |
+
+Remaining mnemonics: transcription continues from B-25. Branch cycle notes on B-4 to B-6 say "+1 if branch occurs to same page, +2 if … to different page" (B-5 says "next page", the same meaning), matching A.5.8.
  Each will get an exact table row (encoding, addressing mode, cycles, flags), as the 8080's §6.1.
 
 Quirks that must each be pinned to a source line before C1 is written:
@@ -345,7 +353,7 @@ Quirks that must each be pinned to a source line before C1 is written:
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on. Both 1976 scans (bitsavers) have **no text layer**, so every check is read from page images (poppler, toolchain#35). Page offset: Programming Manual printed page *n* = PDF page *n* + 13 up to about p.92, and *n* + 16 by p.138 (unnumbered inserts), so check the printed number on each rendered page.
 - [ ] §4 per-cycle table from Appendix A (PDF 168–182): A-1 to A-13 transcribed into §4.1 (single-byte; all read modes incl. abs,X/Y, zp,X/Y, (ind),Y; stores begun). Next: A-6 onward. "BAH + C" reading backed by A.3.6 (dummy read at uncarried BAH). ROR availability note (A-7) → revision decision in §1. A-8 to A-13 done: RMW double write, push/pull, JSR, BRK/interrupts, RTI, JMP, RTS, branches (uncarried first read on taken branches). **Appendix A complete.**
-- [ ] Appendix B (B-3 onward, PDF 200+): ADC to PLA transcribed into §6.1 (B-3 to B-21; ORA (zp),Y has the same missing asterisk as AND; JSR "PC + 2 ↓" on B-17 agrees with the RTS table; BRK's flag row I = 1 on B-8 confirms BRK sets I; AND (zp),Y "5" without asterisk vs A.2.7, Appendix A governs). Next: B-22.
+- [ ] Appendix B (B-3 onward, PDF 200+): ADC to SEC transcribed into §6.1 (B-3 to B-24; ORA (zp),Y has the same missing asterisk as AND; JSR "PC + 2 ↓" on B-17 agrees with the RTS table; BRK's flag row I = 1 on B-8 confirms BRK sets I; AND (zp),Y "5" without asterisk vs A.2.7, Appendix A governs). Next: B-25.
 - [x] Opcode set: Appendix D (D-2 to D-5, page images) lists 151 documented opcodes, 56 mnemonics, 13 addressing modes; 105 bytes are "Future Expansion". ROR is listed (66/6A/6E/76/7E), consistent with the §1 revision decision. Counted by script from a transcription of all 256 entries.
 - [x] §9 Dormann functional test licence: GPL-3.0-or-later (file header, read 2026-11-17); NMOS documented behaviour only; decimal with valid BCD only, N/V/Z ignored. Bruce Clark decimal test: public domain (header), N/V/Z checks optional with NMOS prediction. SingleStepTests 65x02: MIT, emulator-generated, not hardware-verified, so a cross-check only.
 - [x] IRQ/NMI (Hardware Manual pp.25, 38, page images): IRQ level-sensitive and recognised after the current instruction completes; NMI edge-triggered, ≥ 2 cycles low, recognised after the current instruction; I set in the last cycle before the interrupt software. Branch delay, NMI-hijacks-BRK and IRQ/NMI priority are **not** documented, so §6 proposes not specifying them and keeping stimulus away.
