@@ -165,7 +165,26 @@ IFF1 "actually disables interrupts from being accepted"; IFF2 is "temporary stor
 - Priority NMI > INT at the same sampling edge (TM p.18, HALT exit; assumed to hold everywhere) [check PM].
 - `int_n` is level-sensitive; the device holds it until acknowledged (TM §3: "honored at the end of the current instruction").
 
-## 5–7. Reset, instructions, tests
+## 6. Instructions
+
+### 6.0 Which opcodes are documented
+**Source:** PM Appendix C, "Instruction Set Numerical Order" (PDF pp.302–305, page images): Zilog's own Z-80 cross-assembler listing (version 1.06 of 06/18/76, run 07/09/76) of every instruction form in numeric order. It has **694 statements**, numbered 1–694, the last being `SET 7,(IY+IND)` (FD CB d FE).
+
+| Group | Statements | Forms | Our structural count |
+|-------|-----------|-------|----------------------|
+| unprefixed | 1–500, with CB | 252 | 256 minus the 4 prefixes CB, DD, ED, FD |
+| CB | (in 1–500) | 248 | 256 minus CB 30–37 (the undocumented "SLL") |
+| DD (IX) | 501–570 | 70 | 39 + 31 DD CB d forms |
+| ED | 571–624 | **54** | **58** |
+| FD (IY) | 625–694 | 70 | as DD |
+
+**The ED group is 4 short of a structural count, and the reason matters.** Read from the page image of PDF p.304: statement 583 is `ED4D RETI`, then 584 `ED50 IN D,(C)`; and 594 `ED5E IM 2`, then 595 `ED60 IN H,(C)`. So the listing **omits**:
+- `ED 4F` **LD R,A** and `ED 5F` **LD A,R**. Both *are* documented elsewhere: TM §2.0 item 5 ("as the result of an LD R,A instruction") and TM §8.0 ("When a … (LD A,R) instruction is executed, the state of IFF2 is copied into the parity flag"). The listing is an assembler test, not an exhaustive list.
+- `ED 63` and `ED 6B`, alternate encodings of LD (nn),HL / LD HL,(nn) (the documented forms are `22`/`2A`). Whether PM's generic description of `LD (nn),dd` / `LD dd,(nn)` (ED 01dd0011 / 01dd1011) covers dd = HL is [check PM].
+
+***Decision* (proposed):** the documented set is Appendix C's **694 forms plus `LD R,A` and `LD A,R` = 696**, with ED 63 and ED 6B settled by the PM check. Everything else is undocumented: not specified, and not executed by tests (§1). As for the 6502, the final opcode table (§6.1) will be cross-checked by script against this list.
+
+## 5, 7. Reset, tests
 To be written from TM §5–8 and PM, in the 6502 spec's layout: the flags per instruction, the interrupt modes, and the behaviour list C1–C8.
 
 ## 9. Acceptance test candidates (licences to check before use)
@@ -187,4 +206,5 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
 - [x] NMI response and HALT exit (TM §4.0, Figures 4.0-6, 4.0-7, page image p.18), with edges from TM p.70 (tD(HT), tDH(BA)): §4.6, §4.7. **TM §4.0 is now fully read.**
 - [x] Interrupt enable flip-flops, NMI response, INT modes 0/1/2 (TM §8.0, pp.55–57, text layer): §8.
+- [x] Documented opcode set: PM Appendix C, 694 statements; omits LD R,A and LD A,R (and ED 63/6B), page image PDF p.304: §6.0.
 - [x] zexdoc licence: GPL v2 or later, © 1994 Frank D. Cringle (source header, agn453/ZEXALL@8f71d41, read 2026-11-18): §9.
