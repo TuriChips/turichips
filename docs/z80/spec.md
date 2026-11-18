@@ -90,7 +90,47 @@ TM §4.0 times every machine cycle (M cycle) in T states, one clock period Φ ea
 - On writes, `d_oe` drops at the next T1H: tF(D), data float, is measured from that rising edge (p.71).
 - `m1_n` = 1 and `rfsh_n` = 1 throughout.
 
-I/O cycles (Figure 4.0-3), bus request (4.0-4), interrupt acknowledge (4.0-5, 4.0-6) and HALT exit (4.0-7) are next.
+### 4.3 I/O read and write (Figure 4.0-3, 4.0-3A, page image p.15), 4 T states plus waits
+"During I/O operations a single wait state is automatically inserted" (TM p.14): T1, T2, **Tw\***, T3. WAIT is sampled during Tw\* (at the edge that starts Tw\*L), and further Tw follow while it's 0.
+
+| half | `a` | `iorq_n` | `rd_n` (in) | `wr_n` (out) | `d_oe` (out) | `mreq_n` |
+|------|-----|----------|-------------|--------------|--------------|----------|
+| T1H | port address | 1 | 1 | 1 | 0 | 1 |
+| T1L | port address | 1 | 1 | 1 | **1** | 1 |
+| T2H | port address | **0** | **0** | **0** | 1 | 1 |
+| T2L, Tw\*H, Tw\*L | port address | 0 | 0 | 0 | 1 | 1 |
+| T3H | port address | 0 | 0 | 0 | 1 | 1 |
+| T3L | port address | **1** | **1** | **1** | 1 | 1 |
+| next T1H | | | | | 0 | |
+
+- **IORQ, RD and WR fall at T2's *rising* edge**, not mid-T1 as for memory. Input data is taken at the edge that starts T3L (the IN window, and tSΦ̄(D) as for M2–M5).
+- `a`: the figure labels only A0–A7 "PORT ADDRESS". What A8–A15 carry depends on the instruction (TM §5) [check], and it will be specified per instruction in §6.
+- `m1_n` = 1 throughout ("I/O operations never occur during M1 time", §2).
+
+### 4.4 Bus request / acknowledge (Figure 4.0-4, page image p.16)
+- `busrq_n` is sampled "with the rising edge of the last clock period of any machine cycle" (TM p.14). If it's 0, then from "the rising edge of the next clock pulse" the CPU floats `a`, the data bus, `mreq_n`, `rd_n`, `wr_n`, `iorq_n` and **`rfsh_n`** (all five are listed as floating in the figure), and drives `busak_n` = 0. The CPU spends Tx states in this state.
+- `busrq_n` is sampled again at the rising edge of each Tx. Once it's sampled 1, `busak_n` returns to 1 and the CPU drives the buses again from the next rising edge, which starts T1 of the next machine cycle.
+- **Not floated:** `m1_n` and `halt_n` (not in the figure's list) [check against TM §3].
+- "During a bus request cycle, the CPU cannot be interrupted by either a NMI or an INT signal" (p.14).
+- *Modelling (proposed):* a floating output is represented by a 1-bit output enable per group: `bus_oe` for `a`, `mreq_n`, `iorq_n`, `rd_n`, `wr_n` and `rfsh_n`; `d_oe` for data. When an output enable is 0, the pin's value is not compared. The same will apply during reset (§2).
+
+### 4.5 Interrupt acknowledge, mode-independent part (Figure 4.0-5, page image p.16)
+`int_n` is sampled "with the rising edge of the last clock at the end of any instruction" and ignored if the IFF is reset or `busrq_n` is 0 (TM p.16). It's accepted with a **special M1**: T1, T2, **Tw\***, **Tw\***, T3, T4.
+
+| half | `a` | `m1_n` | `mreq_n` | `iorq_n` | `rd_n` | `rfsh_n` |
+|------|-----|--------|----------|----------|--------|----------|
+| T1H | PC | **0** | 1 | 1 | 1 | 1 |
+| T1L, T2H, T2L, Tw\*1H | PC | 0 | 1 | 1 | 1 | 1 |
+| Tw\*1L | PC | 0 | 1 | **0** | 1 | 1 |
+| Tw\*2H, Tw\*2L | PC | 0 | 1 | 0 | 1 | 1 |
+| T3H | {I, R} | **1** | 1 | **1** | 1 | **0** |
+| T3L, T4H | {I, R} | 1 | **0** | 1 | 1 | 0 |
+| T4L | {I, R} | 1 | **1** | 1 | 1 | 0 |
+
+- **No MREQ and no RD** before T3. The vector is taken from `d_in` at the edge that starts T3H (the IN window in the figure, as M1's opcode). WAIT is sampled at the edge that starts Tw\*2L, and user wait states go after the two Tw\* (Figure 4.0-5B, p.17).
+- What follows the vector (mode 0, 1 or 2) is §8.
+
+NMI (Figure 4.0-6) and HALT exit (Figure 4.0-7) are next.
 
 ## 5–8. Reset, instructions, interrupts, tests
 To be written from TM §5–8 and PM, in the 6502 spec's layout: the flags per instruction, the interrupt modes, and the behaviour list C1–C8.
@@ -107,3 +147,4 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] M1 and memory read/write timing (TM §4.0, Figures 4.0-1, 4.0-1A, 4.0-2, page images pp.12–13): §4.1, §4.2.
 - [x] Sampling edges (TM §11 A.C. characteristics p.70 and timing diagram p.71, page image): M1 data at the rising edge, M2–M5 data at the falling edge, WAIT at the falling edge, INT, BUSRQ and RESET set up to the rising edge; write data from T1's falling edge, floating at the next rising edge. Note C: "The RESET signal must be active for a minimum of 3 clock cycles" (for §5).
 - [x] Refresh address {I, R} (TM §2.0 item 5, PDF p.10, text layer).
+- [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
