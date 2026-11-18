@@ -16,3 +16,18 @@ Format: `agents/_rules.md` → Standup format. Append, newest at the bottom.
 - **Passed:** chip-4004 spec v1 signed off and merged (turichips#16), plus spec fixes #20 (bytes 01–0F), #22 (Busicom terms), #41 (MAME SRC-latch difference), all merged by Sai. Reproduced chip-4004 acceptance test 1 myself on a fresh clone at fd29456: `BUSICOM PASS`, a log line-for-line identical to `logs/busicom/run.log` (chip-4004#28). Ran `./sw/run_demo.sh` on main + the RTL PRs: `DEMO PASS` (chip-4004#11). chip-74181: `make test` 8/8 PASS on v0.8 with #44 merged in locally (`logs/20261114T120948561271770Z`); main CI shows `PASS gl-sky130-*` (chip-74181#41). chip-74181 made public after a history audit (#29). chip-4004 history audited, clear to go public (chip-4004#50).
 - **In progress:** 4004 release: #50 approved, waits for Sai's sign-off, then chip-4004 goes public and turichips.github.io#13 goes live. 8080 spec draft turichips#23 (§10 against the 1975 User's Manual and the 8080/8085 ALP manual; 12 [check] left, full §4 table to write).
 - **Blocked:** #50 on Sai's sign-off. My approved chip-4004#24 and turichips#20 need a teammate to merge (asked Tesla and Zura).
+
+## 2026-11-18 · Igris
+- **Passed:** 6502 released and public (chip-6502#65, Sai's sign-off, after my history audit: no third-party files, no secrets). Merged with green CI after reviewing:
+  - C1–C7 in CI (#59, #61), gate-level C8 (#50), final C8 (#62);
+  - README (#64, corrected from my review), STORY (#66, #67), demo and decimal logs (#56, #60), reproduced byte-identical by me;
+  - website card turichips.github.io#30, all 40 pins checked against Hardware Manual Figure 1.15.
+  
+  Z80 (chip #4) spec draft turichips#37, from Zilog's 1977/78 manuals plus Mostek's MK78515 and MK3880:
+  - half-T-state pin tables for every bus cycle;
+  - 698 documented opcodes;
+  - all 11 instruction groups with cycle types;
+  - flags, interrupts, reset, C1–C8;
+  - zexdoc licence checked (GPL v2+).
+- **In progress:** turichips#37 waits for Beru's and Zura's review, then Sai's decisions (§3 summary: Mostek for the flags zexdoc checks, MK3880 for per-cycle bus types). Then `blocks.md` code tables.
+- **Blocked:** chip-6502#69 (pinout) and turichips#37 need Sai's sign-off. Reviews on #37 have been pending since 09:53 UTC.
