@@ -109,7 +109,7 @@ TM §4.0 times every machine cycle (M cycle) in T states, one clock period Φ ea
 
 ### 4.4 Bus request / acknowledge (Figure 4.0-4, page image p.16)
 - `busrq_n` is sampled "with the rising edge of the last clock period of any machine cycle" (TM p.14). If it's 0, then from "the rising edge of the next clock pulse" the CPU floats `a`, the data bus, `mreq_n`, `rd_n`, `wr_n`, `iorq_n` and **`rfsh_n`** (all five are listed as floating in the figure), and drives `busak_n` = 0. The CPU spends Tx states in this state.
-- `busrq_n` is sampled again at the rising edge of each Tx. Once it's sampled 1, `busak_n` returns to 1 and the CPU drives the buses again from the next rising edge, which starts T1 of the next machine cycle.
+- `busrq_n` is sampled again at the rising edge of each Tx. Once it's sampled 1, `busak_n` returns to 1 **at the falling edge** in that Tx (TM p.70: tDH(BA) "BUSAK Delay From Falling Edge of Clock, BUSAK High"; it falls at a rising edge, tDL(BA)). The CPU drives the buses again from the next rising edge, which starts T1 of the next machine cycle.
 - **Not floated:** `m1_n` and `halt_n` (not in the figure's list) [check against TM §3].
 - "During a bus request cycle, the CPU cannot be interrupted by either a NMI or an INT signal" (p.14).
 - *Modelling (proposed):* a floating output is represented by a 1-bit output enable per group: `bus_oe` for `a`, `mreq_n`, `iorq_n`, `rd_n`, `wr_n` and `rfsh_n`; `d_oe` for data. When an output enable is 0, the pin's value is not compared. The same will apply during reset (§2).
@@ -130,7 +130,14 @@ TM §4.0 times every machine cycle (M cycle) in T states, one clock period Φ ea
 - **No MREQ and no RD** before T3. The vector is taken from `d_in` at the edge that starts T3H (the IN window in the figure, as M1's opcode). WAIT is sampled at the edge that starts Tw\*2L, and user wait states go after the two Tw\* (Figure 4.0-5B, p.17).
 - What follows the vector (mode 0, 1 or 2) is §8.
 
-NMI (Figure 4.0-6) and HALT exit (Figure 4.0-7) are next.
+### 4.6 NMI response (Figure 4.0-6, page image p.18)
+- `nmi_n` is "sampled at the same time as the interrupt line", has priority over INT, and can't be disabled (TM p.18). Being edge-triggered (§2), what's sampled is a latched falling edge [check TM §8 for where the edge is latched].
+- The first cycle after acceptance is an **M1 like an opcode fetch**: the same `m1_n`, `mreq_n`, `rd_n` and `rfsh_n` as §4.1, with `a` = PC, but **the data read is ignored** ("similar to a normal memory read … the content of the data bus is ignored"). Then the PC is pushed (two memory writes, §4.2), and execution continues at **0066H**. The exact machine cycles and T counts are §8 [check TM §8.0].
+
+### 4.7 HALT and HALT exit (Figure 4.0-7, page image p.18)
+- After HALT, "each cycle in the halt state is a normal M1 (fetch) cycle except that the data received from the memory is ignored and a NOP instruction is forced internally". So a halted CPU shows the §4.1 sequence every 4 T states, with refresh (TM p.18). The address is [check TM §5/§8: the PC stays at the HALT's successor, or keeps incrementing].
+- `halt_n` falls at the edge that starts **T4L** of the HALT instruction's M1, and rises at the edge that starts T4L of the halted M1 in which the interrupt was accepted. Both are falling edges: TM p.70 tD(HT), "HALT Delay Time From Falling Edge of Clock", and Figure 4.0-7.
+- `int_n` and `nmi_n` are "sampled with the rising clock edge during each T4 state". If NMI, or INT with IFF set, is accepted, the next cycle is the matching interrupt acknowledge (§4.5 or §4.6). **NMI wins if both are present.**
 
 ## 5–8. Reset, instructions, interrupts, tests
 To be written from TM §5–8 and PM, in the 6502 spec's layout: the flags per instruction, the interrupt modes, and the behaviour list C1–C8.
@@ -148,3 +155,4 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] Sampling edges (TM §11 A.C. characteristics p.70 and timing diagram p.71, page image): M1 data at the rising edge, M2–M5 data at the falling edge, WAIT at the falling edge, INT, BUSRQ and RESET set up to the rising edge; write data from T1's falling edge, floating at the next rising edge. Note C: "The RESET signal must be active for a minimum of 3 clock cycles" (for §5).
 - [x] Refresh address {I, R} (TM §2.0 item 5, PDF p.10, text layer).
 - [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
+- [x] NMI response and HALT exit (TM §4.0, Figures 4.0-6, 4.0-7, page image p.18), with edges from TM p.70 (tD(HT), tDH(BA)): §4.6, §4.7. **TM §4.0 is now fully read.**
