@@ -228,7 +228,7 @@ The source per instruction is PM's "M CYCLES … T STATES n(t1,t2,…)" line, wh
 Notes:
 - **POP order.** MK3880 p.85 labels POP's cycles "SRH(3) SRL(3)", the same order as its PUSH row. But PM p.72 (Zilog) says POP "first loads into the low order portion of qq, the byte at the memory location corresponding to the contents of SP; then SP is incremented and … the high order portion". **Zilog's text governs**: M2 reads (SP) into the low byte and M3 reads (SP+1) into the high byte. That's also the only order consistent with PUSH's layout.
 - MK3880's own RET row (p.88) reads "SRL(3) SRH(3)", low byte first, which confirms the POP ruling above.
-- **PUSH IX.** PM's PUSH IX page prints "M CYCLES: 3" next to "15(4,5,3,3)", four lengths; PUSH IY's page prints 4. We take 4 [check page image].
+- **PUSH IX.** PM p.70 (page image, PDF p.74) itself prints "M CYCLES: 3 T STATES: 15(4,5,3,3)". That's four lengths, so it's a misprint in the manual, not an OCR error. PUSH IY's page prints 4, and MK3880 p.85 shows four cycles. We take **4**. The same page confirms the order: the instruction "first decrements the SP and loads the high order byte", then the low byte at SP − 2.
 
 **Exchange, block transfer and search group.** Lengths from PM pp.76–98 (text layer). Cycle types from MK3880 pp.85–86 (page images).
 
