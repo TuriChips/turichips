@@ -347,7 +347,14 @@ RST p's restart addresses (p = 00H, 08H, …, 38H) and the encodings follow from
 - **A0–A7 are the port**: n, or C for the (C) forms. A8–A15 come from PM: for IN A,(n) and OUT (n),A, "The contents of the Accumulator also appear on the top half (A8 through A15) of the address bus at this time". For the (C) and block forms, "The contents of Register B are placed on the top half (A8 through A15)". This settles §4.3's [check].
 - **Which B is on the bus in block I/O** (before or after the decrement): PM's operations list the transfer first ("(HL) ← (C), B ← B−1" and "(C) ← (HL), B ← B−1"). *Decision (proposed)*: A8–A15 = B **before** the decrement, for both input and output [check: PM gives no explicit order statement]. zexdoc doesn't exercise I/O.
 
-Lengthened cycles (an OCF of 5 or 6 T, an IO of 5 T, an OD of 5 T): **where the extra T states sit, and what the pins show during them**, is a §4 rule still to write. *Proposed*: the extra T states follow the cycle's normal last T state (T4 of an OCF, T3 of a read). During them `mreq_n`, `iorq_n`, `rd_n` and `wr_n` are inactive, `m1_n` = 1, `rfsh_n` = 1, and `a` is not compared [check against MK3880 §4 figures]. An IO cycle has no bus activity at all.
+**Lengthened cycles** (an OCF of 5 or 6 T, an IO of 4 or 5 T, a read or write of 4 or 5 T): ***Decision* (proposed)**.
+- **What the manuals give:** a fetch cycle "is four, five or six T cycles long" and other machine cycles "may have anywhere from three to five T cycles" (TM p.11). "Clock state T3 and T4 of a fetch cycle are used to refresh dynamic memories" (TM p.12), so **refresh ends with T4**, and a T5 or T6 has `rfsh_n` = 1 and no refresh MREQ. The figures of TM §4 and MK3880 §4 show only the basic lengths.
+- **What we specify:**
+  1. The extra T states **follow the cycle's basic T states**: T5, T6 after T4 of an OCF, and T4, T5 after T3 of a read or write. They are not inserted before them, and they are not like the Tw of a WAIT, which sits between T2 and T3.
+  2. During the extra T states, `mreq_n`, `iorq_n`, `rd_n`, `wr_n` = 1, `m1_n` = 1, `rfsh_n` = 1, `d_oe` = 0, and `a` is **not compared**. The manuals don't say what's on the address bus then.
+  3. WAIT isn't sampled in them. The extra T states extend the internal operation, not the bus cycle.
+  4. An **IO** cycle (any length) has the same pin values throughout, and `a` isn't compared.
+- This is the one place where a C2 pin rule rests on our choice rather than a page. Beru's model and the RTL both follow it.
 
 **Open decision 7: what each M cycle does on the bus.** C2 compares pins in every half T state (§4.0), so for each M cycle we need its *type*: opcode fetch (§4.1), memory read or write (§4.2), I/O (§4.3), or internal (no bus cycle). We also need, for M cycles longer than the basic 3 T, *where* the extra T states fall. The PM gives only the lengths, and the same lengths mean different things:
 - `LD r,(IX+d)` (4,4,3,5,3): M3 reads d, then **M4 (5 T) can only be internal** (the add; no byte is left to transfer), then M5 reads (IX+d).
