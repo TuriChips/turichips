@@ -43,14 +43,56 @@ Active-low pins keep an `_n` suffix (`m1_n`, `mreq_n`, …), as the 8080 and 650
 
 ## 3. Open decisions (to settle before this spec can be normative)
 
-1. **How to model half-cycle edges.** TM §4.0 [check] has MREQ, RD and WR changing on the clock's **falling** edge within a T state (e.g. MREQ falls half-way through T1). Options: (a) a model clock at 2× the T-state rate, so every half T state is one model cycle; (b) one model cycle per T state, comparing each pin's value as it stands at the end of that T state, with the half-cycle detail stated as "not compared". The 8080 used per-T-state comparison. **Leaning (a)**, since Z80 bus timing is defined by the half-cycle edges. To be decided after reading TM §4.0 in full.
+1. **How to model half-cycle edges.** *Proposed in §4.0: option (a), one model clock per half T state.* TM §4.0 [check] has MREQ, RD and WR changing on the clock's **falling** edge within a T state (e.g. MREQ falls half-way through T1). Options: (a) a model clock at 2× the T-state rate, so every half T state is one model cycle; (b) one model cycle per T state, comparing each pin's value as it stands at the end of that T state, with the half-cycle detail stated as "not compared". The 8080 used per-T-state comparison. **Leaning (a)**, since Z80 bus timing is defined by the half-cycle edges. To be decided after reading TM §4.0 in full.
 2. **Wait sampling point.** TM says WAIT is sampled in T2 of each cycle [check]; it needs the exact edge in the chosen model.
 3. **Interrupt mode 0** puts an arbitrary instruction on the bus. The proposal is to test it only with RST n (single byte), as the 8080 spec did.
 4. **Undocumented behaviour:** confirm §1's scope list with Sai, especially the X/Y flags (it decides zexdoc vs zexall, §9).
 5. **Reset:** the minimum `reset_n` low time and the first fetch cycle (TM §8/§4 [check]), with the same "which cycles are compared" table as the 6502's §5.
 
-## 4–8. Timing, reset, instructions, interrupts, tests
-To be written from TM §4–8 and PM, in the 6502 spec's layout: a total per-cycle table, the flags per instruction, the interrupt modes, and the behaviour list C1–C8.
+## 4. Timing (TM §4.0; normative once checked)
+
+### 4.0 The model clock (*Decision* proposed, settles §3 item 1 as option (a))
+TM §4.0 times every machine cycle (M cycle) in T states, one clock period Φ each, and **several pins change on the falling edge of Φ, half-way through a T state**. Figure 4.0-1, page image p.12: MREQ and RD go active "one half clock time later" than the address, and in Figure 4.0-2 (p.13) WR falls mid-T2 and goes inactive "one half T state before the address and data bus contents are changed". A per-T-state model can't show those edges, so:
+
+- **One model clock = one half T state.** Each T state *Tn* is two model cycles: ***Tn*H** (Φ high, the first half, starting at Φ's rising edge) and ***Tn*L** (Φ low, starting at Φ's falling edge). A model edge is a Φ edge.
+- Every pin is compared **in every half**, at the value it holds through that half (as the 6502's §4.0, with a half in place of a cycle).
+- Inputs are sampled at the edge the manual names: **WAIT at the falling edge that starts T2L and each TwL** (TM p.12, "with the falling edge of Φ"); **opcode data at the rising edge that starts T3** in M1 (TM p.12).
+- Below, "falls mid-T1" means the pin changes at the edge that starts T1L.
+
+### 4.1 M1, opcode fetch (Figure 4.0-1, p.12), 4 T states plus waits
+| half | `a` | `m1_n` | `mreq_n` | `rd_n` | `rfsh_n` | notes |
+|------|-----|--------|----------|--------|----------|-------|
+| T1H | PC | **0** | 1 | 1 | 1 | PC on the bus "at the beginning of the M1 cycle" |
+| T1L | PC | 0 | **0** | **0** | 1 | MREQ and RD "one half clock time later" |
+| T2H | PC | 0 | 0 | 0 | 1 | |
+| T2L | PC | 0 | 0 | 0 | 1 | WAIT sampled at this edge; if 0, Tw follows (TwH/TwL repeat this row, WAIT sampled again at each TwL) |
+| T3H | refresh address | **1** | **1** | **1** | **0** | opcode taken from `d_in` at the edge that starts T3H; "this same edge is used … to turn off the RD and MREQ signals" |
+| T3L | refresh address | 1 | **0** | 1 | 0 | refresh MREQ; "a RD signal is not generated during refresh time" |
+| T4H | refresh address | 1 | 0 | 1 | 0 | |
+| T4L | refresh address | 1 | **1** | 1 | 0 | MREQ rises mid-T4 (Figure 4.0-1 and 4.0-1A) |
+| next T1H | — | — | — | — | **1** | RFSH ends with T4 |
+
+Refresh address: the low 7 bits are R's low 7 bits (TM §3.0). What drives A7–A15 during refresh is [check] (TM §2/§5 on the I register).
+
+### 4.2 Memory read and write, not M1 (Figure 4.0-2, p.13), 3 T states plus waits
+| half | `a` | `mreq_n` | `rd_n` (read) | `wr_n` (write) | `d_oe` (write) |
+|------|-----|----------|---------------|----------------|----------------|
+| T1H | address | 1 | 1 | 1 | 0 |
+| T1L | address | **0** | **0** | 1 | **1** (DATA OUT starts mid-T1 in the figure) [check] |
+| T2H | address | 0 | 0 | 1 | 1 |
+| T2L | address | 0 | 0 | **0** | 1 |
+| T3H | address | 0 | 0 | 0 | 1 |
+| T3L | address | **1** | **1** | **1** | 1 |
+| next T1H | next address | | | | 0 |
+
+- WAIT is sampled at the edge that starts T2L, and Tw states are inserted between T2 and T3, as in M1 (Figure 4.0-2A).
+- **Read data sampling edge [check]:** the text says MREQ and RD are "used the same as in the fetch cycle". The figure's IN window sits at the end of T3H, and MREQ and RD rise at the start of T3L, so the proposal is that read data is taken at the edge that starts T3L. That has to be confirmed against TM §11's timing table before it's normative.
+- `m1_n` = 1 and `rfsh_n` = 1 throughout.
+
+I/O cycles (Figure 4.0-3), bus request (4.0-4), interrupt acknowledge (4.0-5, 4.0-6) and HALT exit (4.0-7) are next.
+
+## 5–8. Reset, instructions, interrupts, tests
+To be written from TM §5–8 and PM, in the 6502 spec's layout: the flags per instruction, the interrupt modes, and the behaviour list C1–C8.
 
 ## 9. Acceptance test candidates (licences to check before use)
 1. **zexdoc** (Frank D. Cringle's Z80 instruction exerciser, documented flags only), the Z80 counterpart of 8080EXM. It's fetched at test time and never committed. Licence to read from its header (GPL, as remembered; **not yet checked**).
@@ -61,3 +103,4 @@ To be written from TM §4–8 and PM, in the 6502 spec's layout: a total per-cyc
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on.
 - [x] Pin list and functions (TM §3.0, pp.7–9, from the text layer; the page image is still to be compared for OCR errors): table in §2.
+- [x] M1 and memory read/write timing (TM §4.0, Figures 4.0-1, 4.0-1A, 4.0-2, page images pp.12–13): §4.1, §4.2. Still open: A7–A15 during refresh, d_oe start on writes, read-data sampling edge.
