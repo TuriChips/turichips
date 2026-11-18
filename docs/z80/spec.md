@@ -169,7 +169,11 @@ IFF1 "actually disables interrupts from being accepted"; IFF2 is "temporary stor
 To be written from TM §5–8 and PM, in the 6502 spec's layout: the flags per instruction, the interrupt modes, and the behaviour list C1–C8.
 
 ## 9. Acceptance test candidates (licences to check before use)
-1. **zexdoc** (Frank D. Cringle's Z80 instruction exerciser, documented flags only), the Z80 counterpart of 8080EXM. It's fetched at test time and never committed. Licence to read from its header (GPL, as remembered; **not yet checked**).
+1. **zexdoc** (Frank D. Cringle's Z80 instruction exerciser, documented flags only), the Z80 counterpart of 8080EXM.
+   - **Licence checked** (2026-11-18, source header): "Copyright (C) 1994 Frank D. Cringle", **GNU GPL version 2 or (at your option) any later version**. It's fetched at test time, pinned by commit and sha256, and never committed (rule 9), as for the 8080 exercisers.
+   - **Where from:** github.com/agn453/ZEXALL at commit 8f71d41 has `zexdoc.com` (8,704 bytes, sha256 `34923a7e…`) and its source `zexdoc.z80`, with a GPL v2 `LICENSE`. That repo's source is modified to assemble with ZSM4, so the original as shipped with yaze is in github.com/begoon/z80exer (`yaze/zexdoc.z80`, with `prelim.z80`). Which binary we pin (the prebuilt `.com`, or our own assembly of the original source) is for Homer to propose, with both hashes recorded.
+   - It's a **CP/M program** (loaded at 0100H, output through BDOS calls at 0005H), so the test system needs the same CP/M stub as the 8080. The 8080 lesson applies: the stub must also give a correct top of memory at 0006H/0007H.
+   - It masks the undocumented X/Y flags, which matches §1. `prelim.z80`, a quick pre-check like 8080PRE, is a candidate first step (same licence) [check its header].
 2. **zexall**: the same, including the undocumented X/Y flags. Only if §1's flag decision changes.
 3. **Per-instruction vectors with bus activity**: SingleStepTests `z80` set, a cross-check only, as for the 6502.
 4. **Examples from the Zilog manuals** (TM §10, the PM).
@@ -183,3 +187,4 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
 - [x] NMI response and HALT exit (TM §4.0, Figures 4.0-6, 4.0-7, page image p.18), with edges from TM p.70 (tD(HT), tDH(BA)): §4.6, §4.7. **TM §4.0 is now fully read.**
 - [x] Interrupt enable flip-flops, NMI response, INT modes 0/1/2 (TM §8.0, pp.55–57, text layer): §8.
+- [x] zexdoc licence: GPL v2 or later, © 1994 Frank D. Cringle (source header, agn453/ZEXALL@8f71d41, read 2026-11-18): §9.
