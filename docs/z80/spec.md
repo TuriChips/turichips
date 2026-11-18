@@ -285,6 +285,7 @@ The source per instruction is PM's "M CYCLES … T STATES n(t1,t2,…)" line, wh
 
 Notes:
 - **POP order.** MK3880 p.85 labels POP's cycles "SRH(3) SRL(3)", the same order as its PUSH row. But PM p.72 (Zilog) says POP "first loads into the low order portion of qq, the byte at the memory location corresponding to the contents of SP; then SP is incremented and … the high order portion". **Zilog's text governs**: M2 reads (SP) into the low byte and M3 reads (SP+1) into the high byte. That's also the only order consistent with PUSH's layout.
+- MK3880's own RET row (p.88) reads "SRL(3) SRH(3)", low byte first, which confirms the POP ruling above.
 - **PUSH IX.** PM's PUSH IX page prints "M CYCLES: 3" next to "15(4,5,3,3)", four lengths; PUSH IY's page prints 4. We take 4 [check page image].
 
 **Exchange, block transfer and search group.** Lengths from PM pp.76–98 (text layer). Cycle types from MK3880 pp.85–86 (page images).
@@ -339,6 +340,28 @@ HALT's following cycles are the halted M1s of §4.7. The EI delay is §8.1.
 
 IO cycles have no bus activity. So in ADD HL,ss the 7 T after the fetch are bus-idle, under the lengthened-cycle rule below.
 
+**Rotate and shift group.** Lengths from PM pp.163–201 (text layer). Cycle types from MK3880 p.87 (page image). `rot` is any of RLC, RL, RRC, RR, SLA, SRA, SRL; their timings are identical (PM per-page tables).
+
+| Instruction | Bytes | M cycles | T states | Cycle types |
+|---|---|---|---|---|
+| RLCA; RLA; RRCA; RRA | 1 | 1 | 4 | OCF(4) |
+| rot r | 2 | 2 | 8 (4,4) | OCF(4) OCF(4) |
+| rot (HL) | 2 | 4 | 15 (4,4,4,3) | OCF(4) OCF(4) MR(4) MW(3) |
+| rot (IX+d); rot (IY+d) | 4 | 6 | 23 (4,4,3,5,4,3) | OCF(4) OCF(4) OD(3) **OD(5)** MR(4) MW(3) (see note) |
+| RLD; RRD | 2 | 5 | 18 (4,4,3,4,3) | OCF(4) OCF(4) MR(3) IO(4) MW(3) |
+
+**Bit set, reset and test group.** Lengths from PM pp.202–218 (text layer). Cycle types from MK3880 pp.87–88 (page images).
+
+| Instruction | Bytes | M cycles | T states | Cycle types |
+|---|---|---|---|---|
+| BIT b,r; SET b,r; RES b,r | 2 | 2 | 8 (4,4) | OCF(4) OCF(4) |
+| BIT b,(HL) | 2 | 3 | 12 (4,4,4) | OCF(4) OCF(4) MR(4) |
+| SET b,(HL); RES b,(HL) | 2 | 4 | 15 (4,4,4,3) | OCF(4) OCF(4) MR(4) MW(3) |
+| BIT b,(IX+d); BIT b,(IY+d) | 4 | 5 | 20 (4,4,3,5,4) | OCF(4) OCF(4) OD(3) **OD(5)** MR(4) |
+| SET/RES b,(IX+d); same for IY | 4 | 6 | 23 (4,4,3,5,4,3) | OCF(4) OCF(4) OD(3) **OD(5)** MR(4) MW(3) |
+
+**Note: the DD CB d op / FD CB d op forms.** These are 4 bytes. MK3880 shows OCF(4)/OCF(4) for DD and CB, OD(3) for d, then **IO(5)**, then the data cycles. That accounts for only 3 bytes on the bus, but the 4th byte (the operation) is in memory and has to be read. The only cycle that can contain it is the 5-T M3. *Decision (proposed)*: M3 is **OD(5)**, a 3-T operand read of the operation byte at PC (`m1_n` = 1 and no refresh, because Zilog's M1 description lists only CB, DD, ED, FD as M1-fetched prefixes), followed by 2 internal T. MK3880's "IO(5)" label is taken as a simplification [check against a later Zilog source if one is found].
+
 Lengthened cycles (an OCF of 5 or 6 T, an IO of 5 T, an OD of 5 T): **where the extra T states sit, and what the pins show during them**, is a §4 rule still to write. *Proposed*: the extra T states follow the cycle's normal last T state (T4 of an OCF, T3 of a read). During them `mreq_n`, `iorq_n`, `rd_n` and `wr_n` are inactive, `m1_n` = 1, `rfsh_n` = 1, and `a` is not compared [check against MK3880 §4 figures]. An IO cycle has no bus activity at all.
 
 **Open decision 7: what each M cycle does on the bus.** C2 compares pins in every half T state (§4.0), so for each M cycle we need its *type*: opcode fetch (§4.1), memory read or write (§4.2), I/O (§4.3), or internal (no bus cycle). We also need, for M cycles longer than the basic 3 T, *where* the extra T states fall. The PM gives only the lengths, and the same lengths mean different things:
@@ -392,7 +415,7 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
 - [x] NMI response and HALT exit (TM §4.0, Figures 4.0-6, 4.0-7, page image p.18), with edges from TM p.70 (tD(HT), tDH(BA)): §4.6, §4.7. **TM §4.0 is now fully read.**
 - [x] Interrupt enable flip-flops, NMI response, INT modes 0/1/2 (TM §8.0, pp.55–57, text layer): §8.
-- [x] 8-bit load group timing (PM pp.26–51, text layer): §6.1. Per-M-cycle bus types aren't in TM, PM, Mostek MK78515 or the 1987 TM, but **are in Mostek MK3880 Technical Manual §12 (Dec 1977)**: decision 7 → (a). NMI 11 T (5,3,3) and the mode 2 cycles from MK3880 p.83–84 (text layer). 8-bit load cycle types from MK3880 p.85 (page image); LD (IX+d),n is missing from that table. 16-bit load group: PM pp.52–75 and MK3880 p.85; MK3880's POP order contradicts PM p.72, and PM governs. Exchange/block group: PM pp.76–98 and MK3880 p.86; MK3880's EX (SP),IX length and its CPI row are corrected from PM. CPIR/CPDR termination (PM p.91). 8-bit arithmetic group: PM pp.99–130 and MK3880 p.86. General-purpose/CPU control and 16-bit arithmetic: PM pp.131–162, MK3880 pp.86–87.
+- [x] 8-bit load group timing (PM pp.26–51, text layer): §6.1. Per-M-cycle bus types aren't in TM, PM, Mostek MK78515 or the 1987 TM, but **are in Mostek MK3880 Technical Manual §12 (Dec 1977)**: decision 7 → (a). NMI 11 T (5,3,3) and the mode 2 cycles from MK3880 p.83–84 (text layer). 8-bit load cycle types from MK3880 p.85 (page image); LD (IX+d),n is missing from that table. 16-bit load group: PM pp.52–75 and MK3880 p.85; MK3880's POP order contradicts PM p.72, and PM governs. Exchange/block group: PM pp.76–98 and MK3880 p.86; MK3880's EX (SP),IX length and its CPI row are corrected from PM. CPIR/CPDR termination (PM p.91). 8-bit arithmetic group: PM pp.99–130 and MK3880 p.86. General-purpose/CPU control and 16-bit arithmetic: PM pp.131–162, MK3880 pp.86–87. Rotate/shift and bit groups: PM pp.163–218, MK3880 pp.87–88; the DD CB op-byte read is a proposed Decision.
 - [x] Flags, Table 6.0-1 (TM §6.0 pp.39–41, page image p.41): §6.2; the conflict with zexdoc's masks is open decision 6. Mostek MK78515 (Oct 1978) flag rows for CCF, LDI/LDD/LDIR/LDDR, CPI/CPIR/CPDR read: §6.2.
 - [x] Reset (TM §3.0 p.9, §8.0 p.55, §11 p.70, text layer): what's reset and the 3-clock minimum. No post-reset timing in the TM, so §5 items 1–4 are Decisions.
 - [x] Documented opcode set: PM Appendix C, 694 statements; omits LD R,A and LD A,R (and ED 63/6B), page image PDF p.304; ED 63/6B documented by PM pp.57, 62 (text layer, dd = HL listed): 698 forms, §6.0.
