@@ -232,9 +232,9 @@ Block I/O isn't exercised by zexdoc. This is the same situation as the 6502's de
 |---|---|---|
 | CCF | "H: Previous carry will be copied" (p.2-55) | X |
 | LDI; LDD; LDIR; LDDR | "S: Not affected", "Z: Not affected" (pp.2-169, 2-165, 2-171, 2-167) | X |
-| CPI; CPIR; CPDR | "H: Set if there is a borrow from bit 4" (pp.2-62, 2-64, 2-60) | X |
+| CPI; CPD; CPIR; CPDR | "H: Set if there is a borrow from bit 4" (pp.2-62, 2-58, 2-64, 2-60) | X |
 
-The CPD page is still to be read the same way. Mostek and Zilog agree on every flag Zilog does define, as far as checked.
+All four block compares read (CPD p.2-58: 16 T states, 4,4,3,5). Mostek and Zilog agree on every flag Zilog does define, as far as checked.
 
 **Recommendation: (a).** Where Zilog's 1977 table says X and Mostek's 1978 manual gives a value, that value is normative, cited to Mostek. Zilog's own X flags that Mostek also leaves open, and the block-I/O S, H and P/V, stay not compared. Mostek was Zilog's licensed second source, so this is a manufacturer's document, not an emulator. It needs Sai's call with the rest of the spec.
 
