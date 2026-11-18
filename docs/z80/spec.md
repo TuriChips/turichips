@@ -241,23 +241,30 @@ All four block compares read (CPD p.2-58: 16 T states, 4,4,3,5). Mostek and Zilo
 ### 6.1 Per-instruction timing (in progress)
 The source per instruction is PM's "M CYCLES … T STATES n(t1,t2,…)" line, which gives each M cycle's length. TM §7 (p.43) gives only totals. Groups as in PM's contents (p.25): 8-bit load, 16-bit load, exchange/block transfer/search, 8-bit arithmetic and logic, general-purpose arithmetic and CPU control, 16-bit arithmetic, rotate and shift, bit set/reset/test, jump, call and return, input and output.
 
-**8-bit load group** (PM pp.26–51, text layer):
+**8-bit load group.** Lengths from PM pp.26–51 (text layer). Cycle types from **MK3880 §12, p.85** (page image). Legend (MK3880 p.85):
+- OCF: opcode fetch (§4.1)
+- OD / ODL / ODH: operand data read (low / high byte)
+- MR / MW: memory read / write (§4.2)
+- IO: internal operation, no bus cycle
+- (n): T states
 
-| Instruction | M cycles | T states (per M) |
-|---|---|---|
-| LD r,r' | 1 | 4 |
-| LD r,n | 2 | 7 (4,3) |
-| LD r,(HL) | 2 | 7 (4,3) |
-| LD r,(IX+d); LD r,(IY+d) | 5 | 19 (4,4,3,5,3) |
-| LD (HL),r | 2 | 7 (4,3) |
-| LD (IX+d),r; LD (IY+d),r | 5 | 19 (4,4,3,5,3) |
-| LD (HL),n | 3 | 10 (4,3,3) |
-| LD (IX+d),n; LD (IY+d),n | 5 | 19 (4,4,3,5,3) |
-| LD A,(BC); LD A,(DE) | 2 | 7 (4,3) |
-| LD A,(nn) | 4 | 13 (4,3,3,3) |
-| LD (BC),A; LD (DE),A | 2 | 7 (4,3) |
-| LD (nn),A | 4 | 13 (4,3,3,3) |
-| LD A,I; LD A,R; LD I,A; LD R,A | 2 | 9 (4,5) |
+| Instruction | Bytes | M cycles | T states | Cycle types (MK3880 p.85) |
+|---|---|---|---|---|
+| LD r,r' | 1 | 1 | 4 | OCF(4) |
+| LD r,n | 2 | 2 | 7 | OCF(4) OD(3) |
+| LD r,(HL) | 1 | 2 | 7 | OCF(4) MR(3) |
+| LD (HL),r | 1 | 2 | 7 | OCF(4) MW(3) |
+| LD r,(IX+d); LD r,(IY+d) | 3 | 5 | 19 | OCF(4) OCF(4) OD(3) IO(5) MR(3) |
+| LD (IX+d),r; LD (IY+d),r | 3 | 5 | 19 | OCF(4) OCF(4) OD(3) IO(5) MW(3) |
+| LD (HL),n | 2 | 3 | 10 | OCF(4) OD(3) MW(3) |
+| LD (IX+d),n; LD (IY+d),n | 4 | 5 | 19 | **not in MK3880's table.** *Derived (decision 7(b))*: OCF(4) OCF(4) OD(3) OD(5) MW(3), i.e. d read, then n read in a 5-T cycle (3-T read + 2 internal T), then the write. To confirm against another MK3880 page or a later source [check] |
+| LD A,(BC); LD A,(DE) | 1 | 2 | 7 | OCF(4) MR(3) |
+| LD (BC),A; LD (DE),A | 1 | 2 | 7 | OCF(4) MW(3) |
+| LD A,(nn) | 3 | 4 | 13 | OCF(4) ODL(3) ODH(3) MR(3) |
+| LD (nn),A | 3 | 4 | 13 | OCF(4) ODL(3) ODH(3) MW(3) |
+| LD A,I; LD A,R; LD I,A; LD R,A | 2 | 2 | 9 | OCF(4) **OCF(5)** |
+
+Lengthened cycles (an OCF of 5 or 6 T, an IO of 5 T, an OD of 5 T): **where the extra T states sit, and what the pins show during them**, is a §4 rule still to write. *Proposed*: the extra T states follow the cycle's normal last T state (T4 of an OCF, T3 of a read). During them `mreq_n`, `iorq_n`, `rd_n` and `wr_n` are inactive, `m1_n` = 1, `rfsh_n` = 1, and `a` is not compared [check against MK3880 §4 figures]. An IO cycle has no bus activity at all.
 
 **Open decision 7: what each M cycle does on the bus.** C2 compares pins in every half T state (§4.0), so for each M cycle we need its *type*: opcode fetch (§4.1), memory read or write (§4.2), I/O (§4.3), or internal (no bus cycle). We also need, for M cycles longer than the basic 3 T, *where* the extra T states fall. The PM gives only the lengths, and the same lengths mean different things:
 - `LD r,(IX+d)` (4,4,3,5,3): M3 reads d, then **M4 (5 T) can only be internal** (the add; no byte is left to transfer), then M5 reads (IX+d).
@@ -310,7 +317,7 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
 - [x] NMI response and HALT exit (TM §4.0, Figures 4.0-6, 4.0-7, page image p.18), with edges from TM p.70 (tD(HT), tDH(BA)): §4.6, §4.7. **TM §4.0 is now fully read.**
 - [x] Interrupt enable flip-flops, NMI response, INT modes 0/1/2 (TM §8.0, pp.55–57, text layer): §8.
-- [x] 8-bit load group timing (PM pp.26–51, text layer): §6.1. Per-M-cycle bus types aren't in TM, PM, Mostek MK78515 or the 1987 TM, but **are in Mostek MK3880 Technical Manual §12 (Dec 1977)**: decision 7 → (a). NMI 11 T (5,3,3) and the mode 2 cycles from MK3880 p.83–84 (text layer).
+- [x] 8-bit load group timing (PM pp.26–51, text layer): §6.1. Per-M-cycle bus types aren't in TM, PM, Mostek MK78515 or the 1987 TM, but **are in Mostek MK3880 Technical Manual §12 (Dec 1977)**: decision 7 → (a). NMI 11 T (5,3,3) and the mode 2 cycles from MK3880 p.83–84 (text layer). 8-bit load cycle types from MK3880 p.85 (page image); LD (IX+d),n is missing from that table.
 - [x] Flags, Table 6.0-1 (TM §6.0 pp.39–41, page image p.41): §6.2; the conflict with zexdoc's masks is open decision 6. Mostek MK78515 (Oct 1978) flag rows for CCF, LDI/LDD/LDIR/LDDR, CPI/CPIR/CPDR read: §6.2.
 - [x] Reset (TM §3.0 p.9, §8.0 p.55, §11 p.70, text layer): what's reset and the 3-clock minimum. No post-reset timing in the TM, so §5 items 1–4 are Decisions.
 - [x] Documented opcode set: PM Appendix C, 694 statements; omits LD R,A and LD A,R (and ED 63/6B), page image PDF p.304; ED 63/6B documented by PM pp.57, 62 (text layer, dd = HL listed): 698 forms, §6.0.
