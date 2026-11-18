@@ -318,6 +318,27 @@ Notes:
 
 The read-modify-write `MR(4)` is a 3-T read plus 1 internal T (the increment), and it's followed by the write. The extra T's position follows the lengthened-cycle rule below.
 
+**General-purpose arithmetic and CPU control group.** Lengths from PM pp.131–145 (text layer). Cycle types from MK3880 p.86 (page image).
+
+| Instruction | Bytes | M cycles | T states | Cycle types |
+|---|---|---|---|---|
+| DAA; CPL; CCF; SCF; NOP; HALT; DI; EI | 1 | 1 | 4 | OCF(4) |
+| NEG; IM 0; IM 1; IM 2 | 2 | 2 | 8 (4,4) | OCF(4) OCF(4) |
+
+HALT's following cycles are the halted M1s of §4.7. The EI delay is §8.1.
+
+**16-bit arithmetic group.** Lengths from PM pp.146–162 (text layer). Cycle types from MK3880 p.87 (page image).
+
+| Instruction | Bytes | M cycles | T states | Cycle types |
+|---|---|---|---|---|
+| ADD HL,ss | 1 | 3 | 11 (4,4,3) | OCF(4) IO(4) IO(3) |
+| ADC HL,ss; SBC HL,ss | 2 | 4 | 15 (4,4,4,3) | OCF(4) OCF(4) IO(4) IO(3) |
+| ADD IX,pp; ADD IY,rr | 2 | 4 | 15 (4,4,4,3) | OCF(4) OCF(4) IO(4) IO(3) |
+| INC ss; DEC ss | 1 | 1 | 6 | **OCF(6)** |
+| INC IX; DEC IX; INC IY; DEC IY | 2 | 2 | 10 (4,6) | OCF(4) **OCF(6)** |
+
+IO cycles have no bus activity. So in ADD HL,ss the 7 T after the fetch are bus-idle, under the lengthened-cycle rule below.
+
 Lengthened cycles (an OCF of 5 or 6 T, an IO of 5 T, an OD of 5 T): **where the extra T states sit, and what the pins show during them**, is a §4 rule still to write. *Proposed*: the extra T states follow the cycle's normal last T state (T4 of an OCF, T3 of a read). During them `mreq_n`, `iorq_n`, `rd_n` and `wr_n` are inactive, `m1_n` = 1, `rfsh_n` = 1, and `a` is not compared [check against MK3880 §4 figures]. An IO cycle has no bus activity at all.
 
 **Open decision 7: what each M cycle does on the bus.** C2 compares pins in every half T state (§4.0), so for each M cycle we need its *type*: opcode fetch (§4.1), memory read or write (§4.2), I/O (§4.3), or internal (no bus cycle). We also need, for M cycles longer than the basic 3 T, *where* the extra T states fall. The PM gives only the lengths, and the same lengths mean different things:
@@ -371,7 +392,7 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
 - [x] NMI response and HALT exit (TM §4.0, Figures 4.0-6, 4.0-7, page image p.18), with edges from TM p.70 (tD(HT), tDH(BA)): §4.6, §4.7. **TM §4.0 is now fully read.**
 - [x] Interrupt enable flip-flops, NMI response, INT modes 0/1/2 (TM §8.0, pp.55–57, text layer): §8.
-- [x] 8-bit load group timing (PM pp.26–51, text layer): §6.1. Per-M-cycle bus types aren't in TM, PM, Mostek MK78515 or the 1987 TM, but **are in Mostek MK3880 Technical Manual §12 (Dec 1977)**: decision 7 → (a). NMI 11 T (5,3,3) and the mode 2 cycles from MK3880 p.83–84 (text layer). 8-bit load cycle types from MK3880 p.85 (page image); LD (IX+d),n is missing from that table. 16-bit load group: PM pp.52–75 and MK3880 p.85; MK3880's POP order contradicts PM p.72, and PM governs. Exchange/block group: PM pp.76–98 and MK3880 p.86; MK3880's EX (SP),IX length and its CPI row are corrected from PM. CPIR/CPDR termination (PM p.91). 8-bit arithmetic group: PM pp.99–130 and MK3880 p.86.
+- [x] 8-bit load group timing (PM pp.26–51, text layer): §6.1. Per-M-cycle bus types aren't in TM, PM, Mostek MK78515 or the 1987 TM, but **are in Mostek MK3880 Technical Manual §12 (Dec 1977)**: decision 7 → (a). NMI 11 T (5,3,3) and the mode 2 cycles from MK3880 p.83–84 (text layer). 8-bit load cycle types from MK3880 p.85 (page image); LD (IX+d),n is missing from that table. 16-bit load group: PM pp.52–75 and MK3880 p.85; MK3880's POP order contradicts PM p.72, and PM governs. Exchange/block group: PM pp.76–98 and MK3880 p.86; MK3880's EX (SP),IX length and its CPI row are corrected from PM. CPIR/CPDR termination (PM p.91). 8-bit arithmetic group: PM pp.99–130 and MK3880 p.86. General-purpose/CPU control and 16-bit arithmetic: PM pp.131–162, MK3880 pp.86–87.
 - [x] Flags, Table 6.0-1 (TM §6.0 pp.39–41, page image p.41): §6.2; the conflict with zexdoc's masks is open decision 6. Mostek MK78515 (Oct 1978) flag rows for CCF, LDI/LDD/LDIR/LDDR, CPI/CPIR/CPDR read: §6.2.
 - [x] Reset (TM §3.0 p.9, §8.0 p.55, §11 p.70, text layer): what's reset and the 3-clock minimum. No post-reset timing in the TM, so §5 items 1–4 are Decisions.
 - [x] Documented opcode set: PM Appendix C, 694 statements; omits LD R,A and LD A,R (and ED 63/6B), page image PDF p.304; ED 63/6B documented by PM pp.57, 62 (text layer, dd = HL listed): 698 forms, §6.0.
