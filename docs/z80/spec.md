@@ -238,6 +238,38 @@ All four block compares read (CPD p.2-58: 16 T states, 4,4,3,5). Mostek and Zilo
 
 **Recommendation: (a).** Where Zilog's 1977 table says X and Mostek's 1978 manual gives a value, that value is normative, cited to Mostek. Zilog's own X flags that Mostek also leaves open, and the block-I/O S, H and P/V, stay not compared. Mostek was Zilog's licensed second source, so this is a manufacturer's document, not an emulator. It needs Sai's call with the rest of the spec.
 
+### 6.1 Per-instruction timing (in progress)
+The source per instruction is PM's "M CYCLES … T STATES n(t1,t2,…)" line, which gives each M cycle's length. TM §7 (p.43) gives only totals. Groups as in PM's contents (p.25): 8-bit load, 16-bit load, exchange/block transfer/search, 8-bit arithmetic and logic, general-purpose arithmetic and CPU control, 16-bit arithmetic, rotate and shift, bit set/reset/test, jump, call and return, input and output.
+
+**8-bit load group** (PM pp.26–51, text layer):
+
+| Instruction | M cycles | T states (per M) |
+|---|---|---|
+| LD r,r' | 1 | 4 |
+| LD r,n | 2 | 7 (4,3) |
+| LD r,(HL) | 2 | 7 (4,3) |
+| LD r,(IX+d); LD r,(IY+d) | 5 | 19 (4,4,3,5,3) |
+| LD (HL),r | 2 | 7 (4,3) |
+| LD (IX+d),r; LD (IY+d),r | 5 | 19 (4,4,3,5,3) |
+| LD (HL),n | 3 | 10 (4,3,3) |
+| LD (IX+d),n; LD (IY+d),n | 5 | 19 (4,4,3,5,3) |
+| LD A,(BC); LD A,(DE) | 2 | 7 (4,3) |
+| LD A,(nn) | 4 | 13 (4,3,3,3) |
+| LD (BC),A; LD (DE),A | 2 | 7 (4,3) |
+| LD (nn),A | 4 | 13 (4,3,3,3) |
+| LD A,I; LD A,R; LD I,A; LD R,A | 2 | 9 (4,5) |
+
+**Open decision 7: what each M cycle does on the bus.** C2 compares pins in every half T state (§4.0), so for each M cycle we need its *type*: opcode fetch (§4.1), memory read or write (§4.2), I/O (§4.3), or internal (no bus cycle). We also need, for M cycles longer than the basic 3 T, *where* the extra T states fall. The PM gives only the lengths, and the same lengths mean different things:
+- `LD r,(IX+d)` (4,4,3,5,3): M3 reads d, then **M4 (5 T) can only be internal** (the add; no byte is left to transfer), then M5 reads (IX+d).
+- `LD (IX+d),n` (4,4,3,5,3): M3 reads d, then **M4 (5 T) must read n** plus 2 internal T, then M5 writes.
+
+Neither TM (1977), PM (1978), Mostek MK78515 (1978) nor Zilog's 1987 Technical Manual (searched 2026-11-18) gives a per-M-cycle breakdown. Options:
+- (a) Find a manufacturer's per-cycle table (a later Zilog document, e.g. the Z80 CPU User Manual), and cite it, as for Mostek in decision 6.
+- (b) Specify each instruction's cycle types ourselves as *Decisions*, from the lengths and what the instruction must transfer. Where that leaves a choice (where in a 5-T read the 2 internal T states go), the strobes are fixed by our rule and `a` isn't compared during internal T states.
+- (c) Compare pins only within bus cycles (`mreq_n`/`iorq_n` active), and check the instruction's total T states, but not the placement of internal T states.
+
+I lean towards (a) if a Zilog source exists, otherwise (b). This needs Sai's call before C2 can be written.
+
 ## 5. Reset
 
 **What Zilog documents:**
@@ -273,6 +305,7 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
 - [x] NMI response and HALT exit (TM §4.0, Figures 4.0-6, 4.0-7, page image p.18), with edges from TM p.70 (tD(HT), tDH(BA)): §4.6, §4.7. **TM §4.0 is now fully read.**
 - [x] Interrupt enable flip-flops, NMI response, INT modes 0/1/2 (TM §8.0, pp.55–57, text layer): §8.
+- [x] 8-bit load group timing (PM pp.26–51, text layer): §6.1. Per-M-cycle bus types aren't in TM, PM, Mostek or the 1987 TM: open decision 7.
 - [x] Flags, Table 6.0-1 (TM §6.0 pp.39–41, page image p.41): §6.2; the conflict with zexdoc's masks is open decision 6. Mostek MK78515 (Oct 1978) flag rows for CCF, LDI/LDD/LDIR/LDDR, CPI/CPIR/CPDR read: §6.2.
 - [x] Reset (TM §3.0 p.9, §8.0 p.55, §11 p.70, text layer): what's reset and the 3-clock minimum. No post-reset timing in the TM, so §5 items 1–4 are Decisions.
 - [x] Documented opcode set: PM Appendix C, 694 statements; omits LD R,A and LD A,R (and ED 63/6B), page image PDF p.304; ED 63/6B documented by PM pp.57, 62 (text layer, dd = HL listed): 698 forms, §6.0.
