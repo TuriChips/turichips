@@ -180,9 +180,9 @@ IFF1 "actually disables interrupts from being accepted"; IFF2 is "temporary stor
 
 **The ED group is 4 short of a structural count, and the reason matters.** Read from the page image of PDF p.304: statement 583 is `ED4D RETI`, then 584 `ED50 IN D,(C)`; and 594 `ED5E IM 2`, then 595 `ED60 IN H,(C)`. So the listing **omits**:
 - `ED 4F` **LD R,A** and `ED 5F` **LD A,R**. Both *are* documented elsewhere: TM §2.0 item 5 ("as the result of an LD R,A instruction") and TM §8.0 ("When a … (LD A,R) instruction is executed, the state of IFF2 is copied into the parity flag"). The listing is an assembler test, not an exhaustive list.
-- `ED 63` and `ED 6B`, alternate encodings of LD (nn),HL / LD HL,(nn) (the documented forms are `22`/`2A`). Whether PM's generic description of `LD (nn),dd` / `LD dd,(nn)` (ED 01dd0011 / 01dd1011) covers dd = HL is [check PM].
+- `ED 63` and `ED 6B`, the ED encodings of LD (nn),HL / LD HL,(nn) (the one-byte forms `22`/`2A` are listed). These *are* documented by PM's generic descriptions: `LD dd,(nn)` = ED 01dd1011 (PM p.57) and `LD (nn),dd` = ED 01dd0011 (PM p.62), each saying "Register pair dd defines BC, DE, HL, or SP", with HL = 10, 6 M cycles, "20 (4,4,3,3,3,3)" T states. So ED 6B = LD HL,(nn) and ED 63 = LD (nn),HL in 20 T states, alongside the 16-T one-byte forms.
 
-***Decision* (proposed):** the documented set is Appendix C's **694 forms plus `LD R,A` and `LD A,R` = 696**, with ED 63 and ED 6B settled by the PM check. Everything else is undocumented: not specified, and not executed by tests (§1). As for the 6502, the final opcode table (§6.1) will be cross-checked by script against this list.
+***Decision* (proposed):** the documented set is Appendix C's **694 forms plus the 4 the listing omits (`LD R,A`, `LD A,R`, `ED 63`, `ED 6B`) = 698**. That's exactly our structural count (252 + 248 + 58 + 70 + 70), so every row of the table above now agrees. Everything else is undocumented: not specified, and not executed by tests (§1). As for the 6502, the final opcode table (§6.1) will be cross-checked by script against this list.
 
 ## 5, 7. Reset, tests
 To be written from TM §5–8 and PM, in the 6502 spec's layout: the flags per instruction, the interrupt modes, and the behaviour list C1–C8.
@@ -206,5 +206,5 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
 - [x] NMI response and HALT exit (TM §4.0, Figures 4.0-6, 4.0-7, page image p.18), with edges from TM p.70 (tD(HT), tDH(BA)): §4.6, §4.7. **TM §4.0 is now fully read.**
 - [x] Interrupt enable flip-flops, NMI response, INT modes 0/1/2 (TM §8.0, pp.55–57, text layer): §8.
-- [x] Documented opcode set: PM Appendix C, 694 statements; omits LD R,A and LD A,R (and ED 63/6B), page image PDF p.304: §6.0.
+- [x] Documented opcode set: PM Appendix C, 694 statements; omits LD R,A and LD A,R (and ED 63/6B), page image PDF p.304; ED 63/6B documented by PM pp.57, 62 (text layer, dd = HL listed): 698 forms, §6.0.
 - [x] zexdoc licence: GPL v2 or later, © 1994 Frank D. Cringle (source header, agn453/ZEXALL@8f71d41, read 2026-11-18): §9.
