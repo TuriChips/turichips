@@ -226,7 +226,17 @@ Block I/O isn't exercised by zexdoc. This is the same situation as the 6502's de
 - (b) leave them unspecified and drop zexdoc, since its masks can't be changed without new reference CRCs from real hardware;
 - (c) leave them unspecified, keep zexdoc, and accept that the RTL must happen to match it.
 
-**Leaning (a)**: it's a 1978 manufacturer's manual, not an emulator. It needs Sai's call with the rest of the spec.
+**Mostek read (2026-11-18), for option (a):** *MK78515 Mostek Z80 Programming Manual* V2.0, October 1978 (bitsavers `components/mostek/Z80/`, 312 pages, text layer). It gives definite values for every flag in question, all of them what zexdoc expects:
+
+| Instruction | Mostek | Zilog 1977 |
+|---|---|---|
+| CCF | "H: Previous carry will be copied" (p.2-55) | X |
+| LDI; LDD; LDIR; LDDR | "S: Not affected", "Z: Not affected" (pp.2-169, 2-165, 2-171, 2-167) | X |
+| CPI; CPIR; CPDR | "H: Set if there is a borrow from bit 4" (pp.2-62, 2-64, 2-60) | X |
+
+The CPD page is still to be read the same way. Mostek and Zilog agree on every flag Zilog does define, as far as checked.
+
+**Recommendation: (a).** Where Zilog's 1977 table says X and Mostek's 1978 manual gives a value, that value is normative, cited to Mostek. Zilog's own X flags that Mostek also leaves open, and the block-I/O S, H and P/V, stay not compared. Mostek was Zilog's licensed second source, so this is a manufacturer's document, not an emulator. It needs Sai's call with the rest of the spec.
 
 ## 5. Reset
 
@@ -263,7 +273,7 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
 - [x] NMI response and HALT exit (TM §4.0, Figures 4.0-6, 4.0-7, page image p.18), with edges from TM p.70 (tD(HT), tDH(BA)): §4.6, §4.7. **TM §4.0 is now fully read.**
 - [x] Interrupt enable flip-flops, NMI response, INT modes 0/1/2 (TM §8.0, pp.55–57, text layer): §8.
-- [x] Flags, Table 6.0-1 (TM §6.0 pp.39–41, page image p.41): §6.2; the conflict with zexdoc's masks is open decision 6.
+- [x] Flags, Table 6.0-1 (TM §6.0 pp.39–41, page image p.41): §6.2; the conflict with zexdoc's masks is open decision 6. Mostek MK78515 (Oct 1978) flag rows for CCF, LDI/LDD/LDIR/LDDR, CPI/CPIR/CPDR read: §6.2.
 - [x] Reset (TM §3.0 p.9, §8.0 p.55, §11 p.70, text layer): what's reset and the 3-clock minimum. No post-reset timing in the TM, so §5 items 1–4 are Decisions.
 - [x] Documented opcode set: PM Appendix C, 694 statements; omits LD R,A and LD A,R (and ED 63/6B), page image PDF p.304; ED 63/6B documented by PM pp.57, 62 (text layer, dd = HL listed): 698 forms, §6.0.
 - [x] zexdoc licence: GPL v2 or later, © 1994 Frank D. Cringle (source header, agn453/ZEXALL@8f71d41, read 2026-11-18): §9.
