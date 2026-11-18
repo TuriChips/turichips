@@ -184,6 +184,50 @@ IFF1 "actually disables interrupts from being accepted"; IFF2 is "temporary stor
 
 ***Decision* (proposed):** the documented set is Appendix C's **694 forms plus the 4 the listing omits (`LD R,A`, `LD A,R`, `ED 63`, `ED 6B`) = 698**. That's exactly our structural count (252 + 248 + 58 + 70 + 70), so every row of the table above now agrees. Everything else is undocumented: not specified, and not executed by tests (§1). As for the 6502, the final opcode table (§6.1) will be cross-checked by script against this list.
 
+### 6.2 Flags (TM §6.0, pp.39–41; Table 6.0-1 read from the page image, p.41)
+F = `S Z X H X P/V N C` (bit 7 → bit 0); "X means flag is indeterminate" (p.39). **Bits 5 and 3 are never compared** (§1).
+
+Table 6.0-1, transcribed. `↕` means set by the result, `•` unchanged, `0`/`1` forced, `X` "don't care", `V` overflow, `P` parity. "Any instruction not appearing in this table does not affect any of the flags" (p.40).
+
+| Instruction | C | Z | P/V | S | N | H |
+|---|---|---|---|---|---|---|
+| ADD A,s; ADC A,s | ↕ | ↕ | V | ↕ | 0 | ↕ |
+| SUB s; SBC A,s; CP s; NEG | ↕ | ↕ | V | ↕ | 1 | ↕ |
+| AND s | 0 | ↕ | P | ↕ | 0 | 1 |
+| OR s; XOR s | 0 | ↕ | P | ↕ | 0 | 0 |
+| INC s | • | ↕ | V | ↕ | 0 | ↕ |
+| DEC m | • | ↕ | V | ↕ | 1 | ↕ |
+| ADD DD,ss (16-bit) | ↕ | • | • | • | 0 | **X** |
+| ADC HL,ss | ↕ | ↕ | V | ↕ | 0 | **X** |
+| SBC HL,ss | ↕ | ↕ | V | ↕ | 1 | **X** |
+| RLA; RLCA; RRA; RRCA | ↕ | • | • | • | 0 | 0 |
+| RL m; RLC m; RR m; RRC m; SLA m; SRA m; SRL m | ↕ | ↕ | P | ↕ | 0 | 0 |
+| RLD; RRD | • | ↕ | P | ↕ | 0 | 0 |
+| DAA | ↕ | ↕ | P | ↕ | • | ↕ |
+| CPL | • | • | • | • | 1 | 1 |
+| SCF | 1 | • | • | • | 0 | 0 |
+| CCF | ↕ | • | • | • | 0 | **X** |
+| IN r,(C) | • | ↕ | P | ↕ | 0 | 0 |
+| INI; IND; OUTI; OUTD | • | ↕ (Z = 0 if B ≠ 0, else 1) | **X** | **X** | 1 | **X** |
+| INIR; INDR; OTIR; OTDR | • | 1 | **X** | **X** | 1 | **X** |
+| LDI; LDD | • | **X** | ↕ (1 if BC ≠ 0) | **X** | 0 | 0 |
+| LDIR; LDDR | • | **X** | 0 | **X** | 0 | 0 |
+| CPI; CPIR; CPD; CPDR | • | ↕ (1 if A = (HL)) | ↕ (1 if BC ≠ 0) | ↕ | 1 | **X** |
+| LD A,I; LD A,R | • | ↕ | IFF (IFF2, §8.1) | ↕ | 0 | 0 |
+| BIT b,s | • | ↕ (bit b → Z) | **X** | **X** | 0 | 1 |
+
+**Open decision 6: the "X" flags that the acceptance test checks.** zexdoc's flag masks follow "Documented flags … as per **Mostek** Z80 Technical Manual" (its source comment, line 49). They agree with Table 6.0-1 for the 16-bit adds (mask C7, H excluded) and BIT (mask 53, S and P/V excluded). But with mask D7 it **does check**, where Zilog 1977 says X:
+- **S and Z after LDI/LDD/LDIR/LDDR** (tests `ldi1`, `ldi2`, `ldd1`, `ldd2`);
+- **H after CPI/CPD** (`cpi1`, `cpd1`);
+- **H after CCF** (in the `daa` test).
+
+Block I/O isn't exercised by zexdoc. This is the same situation as the 6502's decimal flags (turichips#32). The options:
+- (a) specify those flags from **Mostek's Z80 manuals** (the second-source manufacturer; e.g. *MK78515 Mostek Z80 Programming Manual* V2.0, Oct 1978, on bitsavers), which zexdoc's author names as its reference [to read];
+- (b) leave them unspecified and drop zexdoc, since its masks can't be changed without new reference CRCs from real hardware;
+- (c) leave them unspecified, keep zexdoc, and accept that the RTL must happen to match it.
+
+**Leaning (a)**: it's a 1978 manufacturer's manual, not an emulator. It needs Sai's call with the rest of the spec.
+
 ## 5. Reset
 
 **What Zilog documents:**
@@ -219,6 +263,7 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
 - [x] NMI response and HALT exit (TM §4.0, Figures 4.0-6, 4.0-7, page image p.18), with edges from TM p.70 (tD(HT), tDH(BA)): §4.6, §4.7. **TM §4.0 is now fully read.**
 - [x] Interrupt enable flip-flops, NMI response, INT modes 0/1/2 (TM §8.0, pp.55–57, text layer): §8.
+- [x] Flags, Table 6.0-1 (TM §6.0 pp.39–41, page image p.41): §6.2; the conflict with zexdoc's masks is open decision 6.
 - [x] Reset (TM §3.0 p.9, §8.0 p.55, §11 p.70, text layer): what's reset and the 3-clock minimum. No post-reset timing in the TM, so §5 items 1–4 are Decisions.
 - [x] Documented opcode set: PM Appendix C, 694 statements; omits LD R,A and LD A,R (and ED 63/6B), page image PDF p.304; ED 63/6B documented by PM pp.57, 62 (text layer, dd = HL listed): 698 forms, §6.0.
 - [x] zexdoc licence: GPL v2 or later, © 1994 Frank D. Cringle (source header, agn453/ZEXALL@8f71d41, read 2026-11-18): §9.
