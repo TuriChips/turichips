@@ -47,7 +47,7 @@ Active-low pins keep an `_n` suffix (`m1_n`, `mreq_n`, …), as the 8080 and 650
 2. **Wait sampling point.** TM says WAIT is sampled in T2 of each cycle [check]; it needs the exact edge in the chosen model.
 3. **Interrupt mode 0** puts an arbitrary instruction on the bus. The proposal is to test it only with RST n (single byte), as the 8080 spec did.
 4. **Undocumented behaviour:** confirm §1's scope list with Sai, especially the X/Y flags (it decides zexdoc vs zexall, §9).
-5. **Reset:** minimum low time is **3 clock cycles** (TM p.70, note C), and the first fetch cycle is still to be found (TM §8/§4 [check]), with the same "which cycles are compared" table as the 6502's §5.
+5. **Reset:** *proposed in §5* (≥ 3 T states; the first M1 at the first rising edge with `reset_n` = 1; registers other than PC, I, R, IFF and IM not reset). The TM gives no post-reset timing (searched 2026-11-18).
 
 ## 4. Timing (TM §4.0; normative once checked)
 
@@ -184,7 +184,20 @@ IFF1 "actually disables interrupts from being accepted"; IFF2 is "temporary stor
 
 ***Decision* (proposed):** the documented set is Appendix C's **694 forms plus the 4 the listing omits (`LD R,A`, `LD A,R`, `ED 63`, `ED 6B`) = 698**. That's exactly our structural count (252 + 248 + 58 + 70 + 70), so every row of the table above now agrees. Everything else is undocumented: not specified, and not executed by tests (§1). As for the 6502, the final opcode table (§6.1) will be cross-checked by script against this list.
 
-## 5, 7. Reset, tests
+## 5. Reset
+
+**What Zilog documents:**
+- `reset_n` "forces the program counter to zero" and sets IFF (both IFF1 and IFF2, TM p.55) = 0, **I = 00H**, **R = 00H**, **interrupt mode 0** (TM §3.0 p.9).
+- "During reset time, the address bus and data bus go to a high impedance state and all control output signals go to the inactive state" (p.9).
+- "The RESET signal must be active for a minimum of 3 clock cycles" (TM p.70, note C), and it's set up to the **rising** edge of Φ (tS(RS), p.70).
+
+**Not documented, so these are *Decisions* (proposed):**
+1. **Other registers are not reset:** A, F, B, C, D, E, H, L, the alternate set A'…L', IX, IY and SP. As for the 6502 and 8080, the C8 preamble writes every one of them before anything reads it. Comparison has **no exemption window**.
+2. **While `reset_n` = 0:** `bus_oe` = 0 and `d_oe` = 0 (floating, §4.4), so `a`, `mreq_n`, `iorq_n`, `rd_n`, `wr_n`, `rfsh_n` and the data bus are not compared. `m1_n` = 1, `halt_n` = 1 and `busak_n` = 1 ("inactive") are compared from the second T state of reset on.
+3. **The first M1:** T1H of the first opcode fetch starts at **the first rising edge of Φ at which `reset_n` is sampled 1**, at address 0000H. The manuals give no delay here, so this is our choice. It's exact, so the RTL and the model can't disagree.
+4. **Stimulus:** tests hold `reset_n` = 0 for **≥ 3 T states** (6 model cycles) and change it only at a rising edge (T-state boundary). `busrq_n`, `int_n` and `nmi_n` are held inactive from reset until the first M1 has started.
+
+## 7. Tests
 To be written from TM §5–8 and PM, in the 6502 spec's layout: the flags per instruction, the interrupt modes, and the behaviour list C1–C8.
 
 ## 9. Acceptance test candidates (licences to check before use)
@@ -206,5 +219,6 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
 - [x] NMI response and HALT exit (TM §4.0, Figures 4.0-6, 4.0-7, page image p.18), with edges from TM p.70 (tD(HT), tDH(BA)): §4.6, §4.7. **TM §4.0 is now fully read.**
 - [x] Interrupt enable flip-flops, NMI response, INT modes 0/1/2 (TM §8.0, pp.55–57, text layer): §8.
+- [x] Reset (TM §3.0 p.9, §8.0 p.55, §11 p.70, text layer): what's reset and the 3-clock minimum. No post-reset timing in the TM, so §5 items 1–4 are Decisions.
 - [x] Documented opcode set: PM Appendix C, 694 statements; omits LD R,A and LD A,R (and ED 63/6B), page image PDF p.304; ED 63/6B documented by PM pp.57, 62 (text layer, dd = HL listed): 698 forms, §6.0.
 - [x] zexdoc licence: GPL v2 or later, © 1994 Frank D. Cringle (source header, agn453/ZEXALL@8f71d41, read 2026-11-18): §9.
