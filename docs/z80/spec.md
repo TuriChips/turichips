@@ -47,7 +47,7 @@ Active-low pins keep an `_n` suffix (`m1_n`, `mreq_n`, …), as the 8080 and 650
 2. **Wait sampling point.** TM says WAIT is sampled in T2 of each cycle [check]; it needs the exact edge in the chosen model.
 3. **Interrupt mode 0** puts an arbitrary instruction on the bus. The proposal is to test it only with RST n (single byte), as the 8080 spec did.
 4. **Undocumented behaviour:** confirm §1's scope list with Sai, especially the X/Y flags (it decides zexdoc vs zexall, §9).
-5. **Reset:** the minimum `reset_n` low time and the first fetch cycle (TM §8/§4 [check]), with the same "which cycles are compared" table as the 6502's §5.
+5. **Reset:** minimum low time is **3 clock cycles** (TM p.70, note C), and the first fetch cycle is still to be found (TM §8/§4 [check]), with the same "which cycles are compared" table as the 6502's §5.
 
 ## 4. Timing (TM §4.0; normative once checked)
 
@@ -72,13 +72,13 @@ TM §4.0 times every machine cycle (M cycle) in T states, one clock period Φ ea
 | T4L | refresh address | 1 | **1** | 1 | 0 | MREQ rises mid-T4 (Figure 4.0-1 and 4.0-1A) |
 | next T1H | — | — | — | — | **1** | RFSH ends with T4 |
 
-Refresh address: the low 7 bits are R's low 7 bits (TM §3.0). What drives A7–A15 during refresh is [check] (TM §2/§5 on the I register).
+**Refresh address = {I, R}** (TM §2.0 item 5, PDF p.10: R's data "is sent out on the lower portion of the address bus", and "during refresh, the contents of the I register are placed on the upper 8 bits of the address bus"). R's low 7 bits increment "after each instruction fetch", and bit 7 stays as last loaded by `LD R,A`. *Decision*: A7 carries R bit 7. TM §3.0 only guarantees the lower 7 bits as a refresh address, but the low byte is R, so A7 = R[7] is the natural reading. The increment is once per M1, so a prefixed opcode (CB/DD/ED/FD) increments R twice. That follows from M1 being "generated as each op code byte is fetched" (§2) [check against PM's R description].
 
 ### 4.2 Memory read and write, not M1 (Figure 4.0-2, p.13), 3 T states plus waits
 | half | `a` | `mreq_n` | `rd_n` (read) | `wr_n` (write) | `d_oe` (write) |
 |------|-----|----------|---------------|----------------|----------------|
 | T1H | address | 1 | 1 | 1 | 0 |
-| T1L | address | **0** | **0** | 1 | **1** (DATA OUT starts mid-T1 in the figure) [check] |
+| T1L | address | **0** | **0** | 1 | **1** (DATA OUT starts mid-T1: Figure 4.0-2, and tD(D) in the A.C. timing diagram, p.71, is measured from that falling edge) |
 | T2H | address | 0 | 0 | 1 | 1 |
 | T2L | address | 0 | 0 | **0** | 1 |
 | T3H | address | 0 | 0 | 0 | 1 |
@@ -86,7 +86,8 @@ Refresh address: the low 7 bits are R's low 7 bits (TM §3.0). What drives A7–
 | next T1H | next address | | | | 0 |
 
 - WAIT is sampled at the edge that starts T2L, and Tw states are inserted between T2 and T3, as in M1 (Figure 4.0-2A).
-- **Read data sampling edge [check]:** the text says MREQ and RD are "used the same as in the fetch cycle". The figure's IN window sits at the end of T3H, and MREQ and RD rise at the start of T3L, so the proposal is that read data is taken at the edge that starts T3L. That has to be confirmed against TM §11's timing table before it's normative.
+- **Read data is taken at the edge that starts T3L.** TM §11, p.70: tSΦ̄(D) is "Data Setup Time to **Falling** Edge of Clock During M2 to M5", while M1 uses tSΦ(D), the "Rising Edge of Clock During M1 Cycle" (§4.1). This confirms the figure, whose IN window ends at T3's falling edge.
+- On writes, `d_oe` drops at the next T1H: tF(D), data float, is measured from that rising edge (p.71).
 - `m1_n` = 1 and `rfsh_n` = 1 throughout.
 
 I/O cycles (Figure 4.0-3), bus request (4.0-4), interrupt acknowledge (4.0-5, 4.0-6) and HALT exit (4.0-7) are next.
@@ -103,4 +104,6 @@ To be written from TM §5–8 and PM, in the 6502 spec's layout: the flags per i
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on.
 - [x] Pin list and functions (TM §3.0, pp.7–9, from the text layer; the page image is still to be compared for OCR errors): table in §2.
-- [x] M1 and memory read/write timing (TM §4.0, Figures 4.0-1, 4.0-1A, 4.0-2, page images pp.12–13): §4.1, §4.2. Still open: A7–A15 during refresh, d_oe start on writes, read-data sampling edge.
+- [x] M1 and memory read/write timing (TM §4.0, Figures 4.0-1, 4.0-1A, 4.0-2, page images pp.12–13): §4.1, §4.2.
+- [x] Sampling edges (TM §11 A.C. characteristics p.70 and timing diagram p.71, page image): M1 data at the rising edge, M2–M5 data at the falling edge, WAIT at the falling edge, INT, BUSRQ and RESET set up to the rising edge; write data from T1's falling edge, floating at the next rising edge. Note C: "The RESET signal must be active for a minimum of 3 clock cycles" (for §5).
+- [x] Refresh address {I, R} (TM §2.0 item 5, PDF p.10, text layer).
