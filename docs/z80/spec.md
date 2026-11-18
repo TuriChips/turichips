@@ -139,7 +139,33 @@ TM §4.0 times every machine cycle (M cycle) in T states, one clock period Φ ea
 - `halt_n` falls at the edge that starts **T4L** of the HALT instruction's M1, and rises at the edge that starts T4L of the halted M1 in which the interrupt was accepted. Both are falling edges: TM p.70 tD(HT), "HALT Delay Time From Falling Edge of Clock", and Figure 4.0-7.
 - `int_n` and `nmi_n` are "sampled with the rising clock edge during each T4 state". If NMI, or INT with IFF set, is accepted, the next cycle is the matching interrupt acknowledge (§4.5 or §4.6). **NMI wins if both are present.**
 
-## 5–8. Reset, instructions, interrupts, tests
+## 8. Interrupts (TM §8.0, pp.55–57, text layer; normative once checked)
+
+### 8.1 IFF1 and IFF2 (TM p.55, Figure 8.0-1)
+IFF1 "actually disables interrupts from being accepted"; IFF2 is "temporary storage location for IFF1".
+
+| Action | IFF1 | IFF2 | also |
+|--------|------|------|------|
+| Reset | 0 | 0 | |
+| DI | 0 | 0 | |
+| EI | 1 | 1 | INT is **not** accepted until after the instruction **following** EI ("This single instruction delay is necessary for cases when the following instruction is a return") |
+| LD A,I / LD A,R | – | – | P/V ← IFF2 |
+| Accept NMI | **0** | – | IFF2 keeps the old IFF1 |
+| Accept INT (any mode) | 0 | 0 | "both IFF1 and IFF2 are automatically reset" |
+| RETN | ← IFF2 | – | |
+
+### 8.2 Responses
+- **NMI** (TM p.56): accepted "at all times" (but not during a bus request, §4.4). "The CPU ignores the next instruction that it fetches and instead does a restart to location 0066H. Thus, it behaves exactly as if it had received a restart instruction." So the sequence is the §4.6 M1, with data ignored, then the two pushes of PC (§4.2 writes), then PC = 0066H. The T-state count is from the RST timing in PM [check].
+- **INT, mode 0** (8080 mode, the mode after reset): the device puts an instruction on the bus in the §4.5 acknowledge cycle, and the CPU executes it. "The number of clock cycles … is 2 more than the normal number for the instruction" (the two Tw\*). *Proposed*: tests use only **RST p** (one byte) in mode 0, as the 8080 spec did. Multi-byte instructions in mode 0 are not specified.
+- **INT, mode 1**: a restart to **0038H**, with the data bus ignored, "2 more than normal" cycles.
+- **INT, mode 2**: pointer = {I, vector}. The CPU pushes PC and loads PC from the two bytes at the pointer, low byte first. "Only 7 bits are required from the interrupting device as the least significant bit must be a zero." *Proposed*: tests always supply bit 0 = 0, and bit 0 = 1 is not specified. TM gives **19 clock periods** (7 to fetch the vector, 6 to push PC, 6 to read the table). That's one T more than §4.5's 6-T acknowledge cycle shows, so the per-cycle breakdown is [check] against PM.
+
+### 8.3 Still open
+- Where the NMI falling edge is latched, and how long `nmi_n` must stay low in the model (TM gives tw(NMI) ≥ 80 ns, p.70). *Proposed*, as for the 6502: an edge detector runs on every model edge, and tests hold `nmi_n` low ≥ 2 T states and change it only at a T1H edge.
+- Priority NMI > INT at the same sampling edge (TM p.18, HALT exit; assumed to hold everywhere) [check PM].
+- `int_n` is level-sensitive; the device holds it until acknowledged (TM §3: "honored at the end of the current instruction").
+
+## 5–7. Reset, instructions, tests
 To be written from TM §5–8 and PM, in the 6502 spec's layout: the flags per instruction, the interrupt modes, and the behaviour list C1–C8.
 
 ## 9. Acceptance test candidates (licences to check before use)
@@ -156,3 +182,4 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] Refresh address {I, R} (TM §2.0 item 5, PDF p.10, text layer).
 - [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
 - [x] NMI response and HALT exit (TM §4.0, Figures 4.0-6, 4.0-7, page image p.18), with edges from TM p.70 (tD(HT), tDH(BA)): §4.6, §4.7. **TM §4.0 is now fully read.**
+- [x] Interrupt enable flip-flops, NMI response, INT modes 0/1/2 (TM §8.0, pp.55–57, text layer): §8.
