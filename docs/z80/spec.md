@@ -119,7 +119,8 @@ TM §4.0 times every machine cycle (M cycle) in T states, one clock period Φ ea
 ### 4.4 Bus request / acknowledge (Figure 4.0-4, page image p.16)
 - `busrq_n` is sampled "with the rising edge of the last clock period of any machine cycle" (TM p.14). If it's 0, then from "the rising edge of the next clock pulse" the CPU floats `a`, the data bus, `mreq_n`, `rd_n`, `wr_n`, `iorq_n` and **`rfsh_n`** (all five are listed as floating in the figure), and drives `busak_n` = 0. The CPU spends Tx states in this state.
 - `busrq_n` is sampled again at the rising edge of each Tx. Once it's sampled 1, `busak_n` returns to 1 **at the falling edge** in that Tx (TM p.70: tDH(BA) "BUSAK Delay From Falling Edge of Clock, BUSAK High"; it falls at a rising edge, tDL(BA)). The CPU drives the buses again from the next rising edge, which starts T1 of the next machine cycle.
-- **Not floated:** `m1_n` and `halt_n` (not in the figure's list) [check against TM §3].
+- **Not floated:** `m1_n` and `halt_n` (not in the figure's list). TM §3 (pp.7–8, page image) calls both plain "Output", while MREQ, IORQ, RD and WR are "Tri-state output", so they agree.
+- **`rfsh_n` conflict:** TM §3 (p.8) calls RFSH "Output, active low" (not tri-state), but Figure 4.0-4 lists RFSH among the floating signals. *Decision (proposed)*: follow the figure, which describes the bus-request cycle itself. So `rfsh_n` floats with `bus_oe`, and isn't compared while `busak_n` = 0. Either way, a real RFSH can't be active during a bus request, because no M1 runs then.
 - "During a bus request cycle, the CPU cannot be interrupted by either a NMI or an INT signal" (p.14).
 - *Modelling (proposed):* a floating output is represented by a 1-bit output enable per group: `bus_oe` for `a`, `mreq_n`, `iorq_n`, `rd_n`, `wr_n` and `rfsh_n`; `d_oe` for data. When an output enable is 0, the pin's value is not compared. The same will apply during reset (§2).
 
@@ -481,7 +482,7 @@ IFF1 "actually disables interrupts from being accepted"; IFF2 is "temporary stor
 
 ## 10. Datasheet check
 Every [check] gets a line here with the page it was confirmed on.
-- [x] Pin list and functions (TM §3.0, pp.7–9, from the text layer; the page image is still to be compared for OCR errors): table in §2.
+- [x] Pin list and functions (TM §3.0, pp.7–9, text layer, then compared with the page images of pp.8–9 on 2026-11-18, no differences): table in §2.
 - [x] M1 and memory read/write timing (TM §4.0, Figures 4.0-1, 4.0-1A, 4.0-2, page images pp.12–13): §4.1, §4.2.
 - [x] Sampling edges (TM §11 A.C. characteristics p.70 and timing diagram p.71, page image): M1 data at the rising edge, M2–M5 data at the falling edge, WAIT at the falling edge, INT, BUSRQ and RESET set up to the rising edge; write data from T1's falling edge, floating at the next rising edge. Note C: "The RESET signal must be active for a minimum of 3 clock cycles" (for §5).
 - [x] Refresh address {I, R} (TM §2.0 item 5, PDF p.10, text layer).
