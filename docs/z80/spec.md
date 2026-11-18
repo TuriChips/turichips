@@ -155,10 +155,10 @@ IFF1 "actually disables interrupts from being accepted"; IFF2 is "temporary stor
 | RETN | ← IFF2 | – | |
 
 ### 8.2 Responses
-- **NMI** (TM p.56): accepted "at all times" (but not during a bus request, §4.4). "The CPU ignores the next instruction that it fetches and instead does a restart to location 0066H. Thus, it behaves exactly as if it had received a restart instruction." So the sequence is the §4.6 M1, with data ignored, then the two pushes of PC (§4.2 writes), then PC = 0066H. The T-state count is from the RST timing in PM [check].
+- **NMI** (TM p.56): accepted "at all times" (but not during a bus request, §4.4). "The CPU ignores the next instruction that it fetches and instead does a restart to location 0066H." Per MK3880 §12 (p.83): **11 T states**, "the first M1 being a dummy OP Code Fetch of 5 T-States long. The Program Counter is not advanced, the OP Code on the data bus is ignored and an internal Restart is done to address 66H. The following two Machine Cycles are a write of the Program Counter to the Stack" (so 5 + 3 + 3).
 - **INT, mode 0** (8080 mode, the mode after reset): the device puts an instruction on the bus in the §4.5 acknowledge cycle, and the CPU executes it. "The number of clock cycles … is 2 more than the normal number for the instruction" (the two Tw\*). *Proposed*: tests use only **RST p** (one byte) in mode 0, as the 8080 spec did. Multi-byte instructions in mode 0 are not specified.
 - **INT, mode 1**: a restart to **0038H**, with the data bus ignored, "2 more than normal" cycles.
-- **INT, mode 2**: pointer = {I, vector}. The CPU pushes PC and loads PC from the two bytes at the pointer, low byte first. "Only 7 bits are required from the interrupting device as the least significant bit must be a zero." *Proposed*: tests always supply bit 0 = 0, and bit 0 = 1 is not specified. TM gives **19 clock periods** (7 to fetch the vector, 6 to push PC, 6 to read the table). That's one T more than §4.5's 6-T acknowledge cycle shows, so the per-cycle breakdown is [check] against PM.
+- **INT, mode 2**: pointer = {I, vector}. The CPU pushes PC and loads PC from the two bytes at the pointer, low byte first. "Only 7 bits are required from the interrupting device as the least significant bit must be a zero." *Proposed*: tests always supply bit 0 = 0, and bit 0 = 1 is not specified. TM gives **19 clock periods** (7 to fetch the vector, 6 to push PC, 6 to read the table). MK3880 §12 (p.84): "During the INTA cycle (M1) a Vector is sent in … M2 and M3 are used to Stack the Program Counter … During M4 and M5 the Service Routines address is read from this table". So INTA is 7 T, one more than §4.5's figure shows; where that T falls is [check] against MK3880's table (page image).
 
 ### 8.3 Still open
 - Where the NMI falling edge is latched, and how long `nmi_n` must stay low in the model (TM gives tw(NMI) ≥ 80 ns, p.70). *Proposed*, as for the 6502: an edge detector runs on every model edge, and tests hold `nmi_n` low ≥ 2 T states and change it only at a T1H edge.
@@ -268,7 +268,12 @@ Neither TM (1977), PM (1978), Mostek MK78515 (1978) nor Zilog's 1987 Technical M
 - (b) Specify each instruction's cycle types ourselves as *Decisions*, from the lengths and what the instruction must transfer. Where that leaves a choice (where in a 5-T read the 2 internal T states go), the strobes are fixed by our rule and `a` isn't compared during internal T states.
 - (c) Compare pins only within bus cycles (`mreq_n`/`iorq_n` active), and check the instruction's total T states, but not the placement of internal T states.
 
-I lean towards (a) if a Zilog source exists, otherwise (b). This needs Sai's call before C2 can be written.
+**Update (2026-11-18): option (a) has a source.** *MK3880 (Z80) Technical Manual*, Mostek, "Printed in USA December 1977". The copy found is as distributed by Cromemco (PDF title "Cromemco Z-80 Technical Manual 023-0045 197712", 91 pages, text layer; read locally, not committed). **§12 "Z80 Instruction Breakdown by Machine Cycle"** (p.83 on) "tabulates each Z80 instruction type and breaks each instruction down into its machine cycles and corresponding T States … This chart will allow the system designer to predict what the Z80 will do on each clock cycle." Its legend has typed cycles: OCF, OD, ODL/ODH, MR, MRL/MRH, MW, MWL/MWH, SRL/SRH, SWL/SWH, PR, PW, IO (internal operation), INTA. Its own worked examples match the PM lengths:
+- `LD r,(IX+d)`: "two M1 cycles … followed by an Operand Data Read of the displacement d. Next … a five T-State Internal Operation which is the calculation of the Indexed address (IX+d). The last machine cycle … a Memory Read."
+- `PUSH qq`: "Machine cycle 1 is extended by one cycle and the Stack Pointer is decremented in the extra T-State", then two writes, high byte first.
+- `LDI`: OCF, OCF, MR, MW (5 T); `LDIR` adds a 5-T M cycle that decrements PC by 2 and refetches.
+
+**Recommendation now: (a), with the cycle types taken from MK3880 §12 and cited per instruction.** That's Mostek again, Zilog's licensed second source, as in decision 6. §6.1 will gain a cycle-type column from its tables, read from the page images. Where an internal T state falls inside a longer M cycle and MK3880 doesn't say, it's (b) for that detail.
 
 ## 5. Reset
 
@@ -305,7 +310,7 @@ Every [check] gets a line here with the page it was confirmed on.
 - [x] I/O cycles, bus request/acknowledge, interrupt acknowledge (TM §4.0, Figures 4.0-3, 4.0-3A, 4.0-4, 4.0-5, 4.0-5B, page images pp.15–17; text p.14, 16): §4.3–4.5.
 - [x] NMI response and HALT exit (TM §4.0, Figures 4.0-6, 4.0-7, page image p.18), with edges from TM p.70 (tD(HT), tDH(BA)): §4.6, §4.7. **TM §4.0 is now fully read.**
 - [x] Interrupt enable flip-flops, NMI response, INT modes 0/1/2 (TM §8.0, pp.55–57, text layer): §8.
-- [x] 8-bit load group timing (PM pp.26–51, text layer): §6.1. Per-M-cycle bus types aren't in TM, PM, Mostek or the 1987 TM: open decision 7.
+- [x] 8-bit load group timing (PM pp.26–51, text layer): §6.1. Per-M-cycle bus types aren't in TM, PM, Mostek MK78515 or the 1987 TM, but **are in Mostek MK3880 Technical Manual §12 (Dec 1977)**: decision 7 → (a). NMI 11 T (5,3,3) and the mode 2 cycles from MK3880 p.83–84 (text layer).
 - [x] Flags, Table 6.0-1 (TM §6.0 pp.39–41, page image p.41): §6.2; the conflict with zexdoc's masks is open decision 6. Mostek MK78515 (Oct 1978) flag rows for CCF, LDI/LDD/LDIR/LDDR, CPI/CPIR/CPDR read: §6.2.
 - [x] Reset (TM §3.0 p.9, §8.0 p.55, §11 p.70, text layer): what's reset and the 3-clock minimum. No post-reset timing in the TM, so §5 items 1–4 are Decisions.
 - [x] Documented opcode set: PM Appendix C, 694 statements; omits LD R,A and LD A,R (and ED 63/6B), page image PDF p.304; ED 63/6B documented by PM pp.57, 62 (text layer, dd = HL listed): 698 forms, §6.0.
