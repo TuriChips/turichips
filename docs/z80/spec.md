@@ -381,8 +381,8 @@ Neither TM (1977), PM (1978), Mostek MK78515 (1978) nor Zilog's 1987 Technical M
 **Recommendation now: (a), with the cycle types taken from MK3880 §12 and cited per instruction.** That's Mostek again, Zilog's licensed second source, as in decision 6. §6.1 will gain a cycle-type column from its tables, read from the page images. Where an internal T state falls inside a longer M cycle and MK3880 doesn't say, it's (b) for that detail.
 
 ### 6.1a Address arithmetic (Beru's item 12)
-- **(IX+d), (IY+d):** d is a **signed** 8-bit two's-complement displacement (−128…+127), and the address is (IX + d) mod 2¹⁶. PM describes d as "a two's complement integer" [check page], and the 16-bit wrap is our statement.
-- **JR e, JR cc,e, DJNZ e:** the target is (address of the opcode + 2 + e) mod 2¹⁶, with e signed (PM's "e−2" assembler convention, [check page]).
+- **(IX+d), (IY+d):** d is a **signed** 8-bit two's-complement displacement (−128…+127), and the address is (IX + d) mod 2¹⁶. PM p.30: "IX summed with a two's complement displacement integer". The 16-bit wrap is our statement.
+- **JR e, JR cc,e, DJNZ e:** the target is (address of the opcode + 2 + e) mod 2¹⁶, with the stored byte a signed offset from PC + 2. PM p.223: the jump "is measured from the address of the instruction opcode and has a range of -126 to +129 bytes. The assembler automatically adjusts for the twice incremented PC". The encoding diagram shows the byte as "e−2".
 - **(nn), (nn+1) for 16-bit loads, and SP ± 1 on the stack:** mod 2¹⁶. So `LD HL,(FFFFH)` reads FFFF and 0000.
 - **R:** mod 128 in bits 6:0 (§6.3).
 
