@@ -39,7 +39,9 @@ Active-low pins keep an `_n` suffix (`m1_n`, `mreq_n`, …), as the 8080 and 650
 | `reset_n` | in | 1 | Forces PC to 0 and: disables the IFF, I = 00H, R = 00H, interrupt mode 0. "During reset time, the address bus and data bus go to a high impedance state and all control output signals go to the inactive state" |
 | `busrq_n` | in | 1 | Requests the buses and tri-state controls float "as soon as the current CPU machine cycle is terminated" |
 | `busak_n` | out | 1 | The buses and tri-state controls are floating |
-| `clk` | in | 1 | Single-phase clock |
+| `clk` | in | 1 | Single-phase clock. In the model it's two edges per T state, one per half (§4.0) |
+| `bus_oe` | out | 1 | *Model pin, not on the package*: 1 while the CPU drives `a`, `mreq_n`, `iorq_n`, `rd_n`, `wr_n` and `rfsh_n`. 0 during a bus request (§4.4) and reset (§5). While it's 0, those pins aren't compared |
+| `d_oe` | out | 1 | *Model pin*: 1 while the CPU drives the data bus (writes, §4.2–4.3). While it's 0, `d_out` isn't compared |
 
 ## 3. Open decisions (to settle before this spec can be normative)
 **Summary, for Sai.** Items 1–5 below, and in the body:
@@ -47,7 +49,7 @@ Active-low pins keep an `_n` suffix (`m1_n`, `mreq_n`, …), as the 8080 and 650
 - **8.** DAA outside Zilog's and Mostek's 13-row table, and H after DAA: neither manual defines them, and zexdoc checks them. Recommend (a), a named secondary source as with the 6502 (§6.2).
 - **7.** Per-cycle bus types: recommend Mostek MK3880 §12, with Zilog's text governing where they differ (§6.1).
 - **Also open:**
-  - the mode-0 INTA length (TM +2 vs MK3880 12 T, §8.2);
+  - the mode-0 INTA length: proposed MK3880's 12 T (§8.2);
   - the DD CB op-byte read (§6.1);
   - where the extra T states of lengthened cycles fall (§6.1).
 
@@ -67,6 +69,7 @@ TM §4.0 times every machine cycle (M cycle) in T states, one clock period Φ ea
 - Every pin is compared **in every half**, at the value it holds through that half (as the 6502's §4.0, with a half in place of a cycle).
 - Inputs are sampled at the edge the manual names: **WAIT at the falling edge that starts T2L and each TwL** (TM p.12, "with the falling edge of Φ"); **opcode data at the rising edge that starts T3** in M1 (TM p.12).
 - Below, "falls mid-T1" means the pin changes at the edge that starts T1L.
+- **Every output not listed in a §4 table has its inactive value** in every half of that table: `m1_n`, `mreq_n`, `iorq_n`, `rd_n`, `wr_n`, `rfsh_n` = 1 and `d_oe` = 0. `halt_n` follows §4.7 and `busak_n` §4.4, and `bus_oe` = 1 except during a bus request (§4.4) and reset (§5). Where a table has no `a` column for a half, `a` holds that table's last stated value (Beru's item 10).
 
 ### 4.1 M1, opcode fetch (Figure 4.0-1, p.12), 4 T states plus waits
 | half | `a` | `m1_n` | `mreq_n` | `rd_n` | `rfsh_n` | notes |
@@ -377,6 +380,12 @@ Neither TM (1977), PM (1978), Mostek MK78515 (1978) nor Zilog's 1987 Technical M
 
 **Recommendation now: (a), with the cycle types taken from MK3880 §12 and cited per instruction.** That's Mostek again, Zilog's licensed second source, as in decision 6. §6.1 will gain a cycle-type column from its tables, read from the page images. Where an internal T state falls inside a longer M cycle and MK3880 doesn't say, it's (b) for that detail.
 
+### 6.1a Address arithmetic (Beru's item 12)
+- **(IX+d), (IY+d):** d is a **signed** 8-bit two's-complement displacement (−128…+127), and the address is (IX + d) mod 2¹⁶. PM describes d as "a two's complement integer" [check page], and the 16-bit wrap is our statement.
+- **JR e, JR cc,e, DJNZ e:** the target is (address of the opcode + 2 + e) mod 2¹⁶, with e signed (PM's "e−2" assembler convention, [check page]).
+- **(nn), (nn+1) for 16-bit loads, and SP ± 1 on the stack:** mod 2¹⁶. So `LD HL,(FFFFH)` reads FFFF and 0000.
+- **R:** mod 128 in bits 6:0 (§6.3).
+
 ### 6.2 Flags (TM §6.0, pp.39–41; Table 6.0-1 read from the page image, p.41)
 F = `S Z X H X P/V N C` (bit 7 → bit 0); "X means flag is indeterminate" (p.39). **Bits 5 and 3 are never compared** (§1).
 
@@ -509,15 +518,15 @@ IFF1 "actually disables interrupts from being accepted"; IFF2 is "temporary stor
 | Reset | 0 | 0 | |
 | DI | 0 | 0 | |
 | EI | 1 | 1 | INT is **not** accepted until after the instruction **following** EI ("This single instruction delay is necessary for cases when the following instruction is a return") |
-| LD A,I / LD A,R | – | – | P/V ← IFF2 |
+| LD A,I / LD A,R | – | – | P/V ← IFF2 **as it stands during the instruction**, before any interrupt accepted at its end resets it (Beru's item 15; the NMOS part reportedly differs, and we specify this, not that) |
 | Accept NMI | **0** | – | IFF2 keeps the old IFF1 |
 | Accept INT (any mode) | 0 | 0 | "both IFF1 and IFF2 are automatically reset" |
 | RETN | ← IFF2 | – | |
-| RETI | – | – | **IFF unchanged**: PM p.247, "This instruction does not enable interrupts which were disabled when the interrupt routine was entered. Before doing the RETI instruction, the enable interrupt instruction (EI) should be executed" |
+| RETI | – | – | **IFF unchanged** (*a C4 directed test*, since later Zilog material may differ; Beru's item 16): PM p.247, "This instruction does not enable interrupts which were disabled when the interrupt routine was entered. Before doing the RETI instruction, the enable interrupt instruction (EI) should be executed" |
 
 ### 8.2 Responses
 - **NMI** (TM p.56): accepted "at all times" (but not during a bus request, §4.4). "The CPU ignores the next instruction that it fetches and instead does a restart to location 0066H." Per MK3880 §12 (p.83): **11 T states**, "the first M1 being a dummy OP Code Fetch of 5 T-States long. The Program Counter is not advanced, the OP Code on the data bus is ignored and an internal Restart is done to address 66H. The following two Machine Cycles are a write of the Program Counter to the Stack" (so 5 + 3 + 3).
-- **INT, mode 0** (8080 mode, the mode after reset): the device puts an instruction on the bus in the §4.5 acknowledge cycle, and the CPU executes it. MK3880 p.89: with RST inserted, **INTA(6) SWH(3) SWL(3) = 12 T**; with CALL inserted, INTA(6) ODL(3) ODH(4) SWH(3) SWL(3). **Conflict:** TM p.56 says "2 more than the normal number" (RST is 11, giving 13), but MK3880 gives 12. Open [check]. Tests can avoid depending on it only if C2 doesn't time mode 0, which is a Decision to take. "The number of clock cycles … is 2 more than the normal number for the instruction" (the two Tw\*). *Proposed*: tests use only **RST p** (one byte) in mode 0, as the 8080 spec did. Multi-byte instructions in mode 0 are not specified.
+- **INT, mode 0** (8080 mode, the mode after reset): the device puts an instruction on the bus in the §4.5 acknowledge cycle, and the CPU executes it. MK3880 p.89: with RST inserted, **INTA(6) SWH(3) SWL(3) = 12 T**; with CALL inserted, INTA(6) ODL(3) ODH(4) SWH(3) SWL(3). **Conflict:** TM p.56 says "2 more than the normal number" (RST is 11, giving 13), but MK3880 gives 12. *Decision (proposed, Beru's item 13)*: take MK3880's **INTA(6) SWH(3) SWL(3) = 12 T** for RST in mode 0, because it's the only per-cycle source and tests only insert RST. TM's "2 more" is noted as a disagreement. "The number of clock cycles … is 2 more than the normal number for the instruction" (the two Tw\*). *Proposed*: tests use only **RST p** (one byte) in mode 0, as the 8080 spec did. Multi-byte instructions in mode 0 are not specified.
 - **INT, mode 1**: a restart to **0038H**, with the data bus ignored, "2 more than normal" cycles. MK3880 p.89: **INTA(7) SWH(3) SWL(3) = 13 T** (RST's 11 + 2).
 - **INT, mode 2**: pointer = {I, vector}. The CPU pushes PC and loads PC from the two bytes at the pointer, low byte first. "Only 7 bits are required from the interrupting device as the least significant bit must be a zero." *Proposed*: tests always supply bit 0 = 0, and bit 0 = 1 is not specified. TM gives **19 clock periods** (7 to fetch the vector, 6 to push PC, 6 to read the table). MK3880 §12 (p.84): "During the INTA cycle (M1) a Vector is sent in … M2 and M3 are used to Stack the Program Counter … During M4 and M5 the Service Routines address is read from this table". MK3880 p.89: **INTA(7) SWH(3) SWL(3) MRL(3) MRH(3)** = 19 T. INTA is 7 T in modes 1 and 2 (6 in mode 0), one more than Figure 4.0-5's 6. *Proposed*: the extra T follows T4 with the strobes inactive (the SP − 1 step, as in RST's OCF(5)), per the lengthened-cycle rule.
 
