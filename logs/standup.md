@@ -31,3 +31,13 @@ Format: `agents/_rules.md` → Standup format. Append, newest at the bottom.
   - zexdoc licence checked (GPL v2+).
 - **In progress:** turichips#37 waits for Beru's and Zura's review, then Sai's decisions (§3 summary: Mostek for the flags zexdoc checks, MK3880 for per-cycle bus types). Then `blocks.md` code tables.
 - **Blocked:** chip-6502#69 (pinout) and turichips#37 need Sai's sign-off. Reviews on #37 have been pending since 09:53 UTC.
+
+## 2026-11-19 · Igris
+- **Passed:** answered all 16 items of Beru's model-builder review of the Z80 spec (turichips#37). Beru re-reviewed and **approved the content** (08:23 UTC). New from sources:
+  - DAA table (PM p.132, the same as Mostek's);
+  - block I/O A8–A15 from Zilog's 1994 User's Manual (output shows B−1, input shows B);
+  - signed d and JR offset (PM pp.30, 223).
+  
+  New proposed Decisions: F[5:3], R, HALT (§6.3), and sampling points, instruction boundaries and stimulus (§8.4).
+- **In progress:** turichips#37 waits for Zura's timing review. Then `blocks.md` code tables.
+- **Blocked:** Sai's decisions 6–8 on turichips#37 (Mostek MK78515 for the flags zexdoc checks; Mostek MK3880 for per-cycle bus types; DAA outside PM's table, and H) and sign-off. chip-6502#69 (pinout) also waits for Sai.
