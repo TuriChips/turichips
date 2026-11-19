@@ -49,7 +49,6 @@ Active-low pins keep an `_n` suffix (`m1_n`, `mreq_n`, …), as the 8080 and 650
 - **Also open:**
   - the mode-0 INTA length (TM +2 vs MK3880 12 T, §8.2);
   - the DD CB op-byte read (§6.1);
-  - block I/O's B on A8–A15 (§6.1);
   - where the extra T states of lengthened cycles fall (§6.1).
 
 
@@ -347,7 +346,11 @@ RST p's restart addresses (p = 00H, 08H, …, 38H) and the encodings follow from
 | OTIR; OTDR | 2 | 5 / 4 | 21 / 16 | as OUTI/OUTD, plus IO(5) when repeating | B |
 
 - **A0–A7 are the port**: n, or C for the (C) forms. A8–A15 come from PM: for IN A,(n) and OUT (n),A, "The contents of the Accumulator also appear on the top half (A8 through A15) of the address bus at this time". For the (C) and block forms, "The contents of Register B are placed on the top half (A8 through A15)". This settles §4.3's [check].
-- **Which B is on the bus in block I/O** (before or after the decrement): PM's operations list the transfer first ("(HL) ← (C), B ← B−1" and "(C) ← (HL), B ← B−1"). *Decision (proposed)*: A8–A15 = B **before** the decrement, for both input and output [check: PM gives no explicit order statement]. zexdoc doesn't exercise I/O.
+- **Which B is on the bus in block I/O** (Beru's item 8). PM (1978) gives only the operation order. **Zilog's later *Z80 Microprocessor Family User's Manual*** (1994, bitsavers `components/zilog/z80/1994_Zilog_Z80_Microprocessor_Family_Users_Manual.pdf`, instruction pages for INI … OTDR, text layer, read 2026-11-18) states it explicitly:
+  - **Input** (INI, INIR, IND, INDR): B's "contents are placed on the top half (A8 through A15) … Finally the byte counter is decremented". So A8–A15 = B **before** the decrement.
+  - **Output** (OUTI, OTIR, OUTD, OTDR): "After the byte counter (B) is decremented … its decremented value is placed on the top half (A8 through A15)". So A8–A15 = **B − 1**, with the decrement done before the port write.
+
+  *Decision*: follow Zilog's own text, which replaces my earlier "before the decrement for both". The 1994 manual is later than the chip, but it's Zilog's, and it's the only source that states the order. It's cited per instruction.
 
 **Lengthened cycles** (an OCF of 5 or 6 T, an IO of 4 or 5 T, a read or write of 4 or 5 T): ***Decision* (proposed)**.
 - **What the manuals give:** a fetch cycle "is four, five or six T cycles long" and other machine cycles "may have anywhere from three to five T cycles" (TM p.11). "Clock state T3 and T4 of a fetch cycle are used to refresh dynamic memories" (TM p.12), so **refresh ends with T4**, and a T5 or T6 has `rfsh_n` = 1 and no refresh MREQ. The figures of TM §4 and MK3880 §4 show only the basic lengths.
