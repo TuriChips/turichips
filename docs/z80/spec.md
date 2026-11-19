@@ -523,6 +523,36 @@ IFF1 "actually disables interrupts from being accepted"; IFF2 is "temporary stor
 - Priority NMI > INT at the same sampling edge (TM p.18, HALT exit; assumed to hold everywhere) [check PM].
 - `int_n` is level-sensitive; the device holds it until acknowledged (TM §3: "honored at the end of the current instruction").
 
+### 8.4 Sampling points, instruction boundaries and stimulus (*Decisions* proposed; Beru's items 4–7)
+**General rule for inputs.** A pin that changes at model edge E is seen by samples taken at edges **after** E, never at E itself.
+
+**Item 4, sampling points.**
+- **INT and NMI** are sampled "with the rising edge of the last clock at the end of any instruction" (TM p.16). We define that as **the rising edge that starts the last T state of the instruction's last M cycle**. Wait states (Tw) sit between T2 and T3, so they never form the last T state.
+  - If that M cycle is lengthened (§6.1), its last extra T state counts: T6 of LD SP,HL's OCF(6), T5 of RET cc false's OCF(5).
+  - If it's an IO cycle, its last T counts: T3 of ADD HL,ss's IO(3).
+- **BUSRQ** is sampled "with the rising edge of the last clock period of any machine cycle" (TM p.14). That's the rising edge starting the last T state of **every** M cycle, including IO and lengthened ones. If it's sampled 0, the buses float from the next rising edge, whatever the cycle type (§4.4). A bus request can therefore fall between two M cycles of one instruction. INT/NMI can't, and are only sampled at instruction ends.
+- **Halted:** INT and NMI are sampled at the rising edge starting T4 of each halted M1 (TM p.18, §4.7).
+
+**Item 5, what counts as one instruction for INT and NMI.**
+- **A prefix and its opcode are one instruction** (CB xx, DD xx, ED xx, FD xx, DD CB d op, FD CB d op). There's no interrupt between them, and the sampling point is the end of the whole instruction.
+- **Each iteration of LDIR, LDDR, CPIR, CPDR, INIR, INDR, OTIR or OTDR is one instruction.** An interrupt can be accepted at the end of an iteration, after its IO(5) when it repeats. The pushed PC is then the block instruction's own address, because the IO(5) has already done PC − 2. PM says so for CPIR: "Interrupts will be recognized … after each data transfer" (p.91).
+- **EI's delay** (§8.1): INT is not accepted at the end of EI, nor at the end of the instruction after it. **EI; EI** restarts the delay, so INT can be accepted only after the instruction following the *last* EI (the gap from chip-8080#47, closed here). **The EI delay doesn't apply to NMI.**
+
+**Item 6, NMI edge and pending.** As for the 6502 (chip-6502 spec §6, rules 3–5):
+1. An edge detector runs at **every model edge**. An NMI becomes pending at the edge where `nmi_n` is sampled 0 after being sampled 1 at the previous model edge.
+2. A sampling point sees an NMI that became pending at an earlier edge.
+3. Pending clears when the CPU commits to the NMI response, at the sampling point.
+4. An edge detected after that stays pending.
+5. Neither the INTA nor the NMI response samples INT or NMI, so the **first instruction of a handler always runs** before another interrupt (chip-6502#42's lesson).
+6. NMI beats INT at the same sampling point (TM p.18).
+
+**Item 7, stimulus rules for tests (C3–C8).**
+- `wait_n` changes only at **rising** edges, the start of an H half, because it's sampled at falling edges.
+- `int_n`, `nmi_n` and `busrq_n` change only at the edge that starts a **T1H**, of any M cycle. A Tw or extra T state never starts a T1, so there's no repeated-cycle case as on the 6502.
+- `reset_n`: §5. `nmi_n` stays low for ≥ 2 T states (4 model cycles).
+- `int_n` is held low until the INTA M1 starts. It may then go high at a later T1H, as a real device releases it on acknowledge.
+- INT mode 2 vectors always have bit 0 = 0 (§8.2, Beru's item 14).
+
 ## 9. Acceptance test candidates (licences to check before use)
 1. **zexdoc** (Frank D. Cringle's Z80 instruction exerciser, documented flags only), the Z80 counterpart of 8080EXM.
    - **Licence checked** (2026-11-18, source header): "Copyright (C) 1994 Frank D. Cringle", **GNU GPL version 2 or (at your option) any later version**. It's fetched at test time, pinned by commit and sha256, and never committed (rule 9), as for the 8080 exercisers.
