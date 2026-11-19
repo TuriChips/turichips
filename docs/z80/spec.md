@@ -474,7 +474,7 @@ zexdoc masks these bits, so it's indifferent. zexall would fail, and isn't our a
 2. The refresh address in an M1's T3–T4 is {I, R} with **R as it was at the start of that M1**, before that M1's increment.
 3. LD A,R loads R **after** both of its own M1 increments. LD R,A sets R = A at its end, after its own increments, so R equals A when the next instruction starts.
 
-**HALT** (PM p.135: the CPU "will execute NOP's to maintain memory refresh logic"; TM p.18: each halted cycle is "a normal M1 (fetch) cycle except that the data received from the memory is ignored").
+**HALT** (PM p.140: the CPU "will execute NOP's to maintain memory refresh logic"; TM p.18: each halted cycle is "a normal M1 (fetch) cycle except that the data received from the memory is ignored").
 1. HALT's own fetch advances PC to HALT + 1 as usual.
 2. **Every halted M1 fetches at HALT + 1, and PC doesn't advance**; the data is ignored.
 3. The interrupt that ends the halt (§4.7) pushes **HALT + 1**.
