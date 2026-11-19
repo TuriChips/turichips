@@ -56,7 +56,7 @@ Active-low pins keep an `_n` suffix (`m1_n`, `mreq_n`, …), as the 8080 and 650
 1. **How to model half-cycle edges.** *Proposed in §4.0: option (a), one model clock per half T state.* TM §4.0 [check] has MREQ, RD and WR changing on the clock's **falling** edge within a T state (e.g. MREQ falls half-way through T1). Options: (a) a model clock at 2× the T-state rate, so every half T state is one model cycle; (b) one model cycle per T state, comparing each pin's value as it stands at the end of that T state, with the half-cycle detail stated as "not compared". The 8080 used per-T-state comparison. **Leaning (a)**, since Z80 bus timing is defined by the half-cycle edges. To be decided after reading TM §4.0 in full.
 2. **Wait sampling point.** TM says WAIT is sampled in T2 of each cycle [check]; it needs the exact edge in the chosen model.
 3. **Interrupt mode 0** puts an arbitrary instruction on the bus. The proposal is to test it only with RST n (single byte), as the 8080 spec did.
-4. **Undocumented behaviour:** confirm §1's scope list with Sai, especially the X/Y flags (it decides zexdoc vs zexall, §9).
+4. **Undocumented behaviour:** confirm §1's scope list with Sai, especially the X/Y flags (it decides zexdoc vs zexall, §9). F[5:3] are now defined as 0 after any flag-writing instruction (§6.3).
 5. **Reset:** *proposed in §5* (≥ 3 T states; the first M1 at the first rising edge with `reset_n` = 1; registers other than PC, I, R, IFF and IM not reset). The TM gives no post-reset timing (searched 2026-11-18).
 
 ## 4. Timing (TM §4.0; normative once checked)
@@ -146,7 +146,7 @@ TM §4.0 times every machine cycle (M cycle) in T states, one clock period Φ ea
 - The first cycle after acceptance is an **M1 like an opcode fetch**: the same `m1_n`, `mreq_n`, `rd_n` and `rfsh_n` as §4.1, with `a` = PC, but **the data read is ignored** ("similar to a normal memory read … the content of the data bus is ignored"). Then the PC is pushed (two memory writes, §4.2), and execution continues at **0066H**. The exact machine cycles and T counts are §8 [check TM §8.0].
 
 ### 4.7 HALT and HALT exit (Figure 4.0-7, page image p.18)
-- After HALT, "each cycle in the halt state is a normal M1 (fetch) cycle except that the data received from the memory is ignored and a NOP instruction is forced internally". So a halted CPU shows the §4.1 sequence every 4 T states, with refresh (TM p.18). The address is [check TM §5/§8: the PC stays at the HALT's successor, or keeps incrementing].
+- After HALT, "each cycle in the halt state is a normal M1 (fetch) cycle except that the data received from the memory is ignored and a NOP instruction is forced internally". So a halted CPU shows the §4.1 sequence every 4 T states, with refresh (TM p.18). The address is HALT + 1 every time (§6.3).
 - `halt_n` falls at the edge that starts **T4L** of the HALT instruction's M1, and rises at the edge that starts T4L of the halted M1 in which the interrupt was accepted. Both are falling edges: TM p.70 tD(HT), "HALT Delay Time From Falling Edge of Clock", and Figure 4.0-7.
 - `int_n` and `nmi_n` are "sampled with the rising clock edge during each T4 state". If NMI, or INT with IFF set, is accepted, the next cycle is the matching interrupt acknowledge (§4.5 or §4.6). **NMI wins if both are present.**
 
@@ -453,6 +453,32 @@ Block I/O isn't exercised by zexdoc. This is the same situation as the 6502's de
 All four block compares read (CPD p.2-58: 16 T states, 4,4,3,5). Mostek and Zilog agree on every flag Zilog does define, as far as checked.
 
 **Recommendation: (a).** Where Zilog's 1977 table says X and Mostek's 1978 manual gives a value, that value is normative, cited to Mostek. Zilog's own X flags that Mostek also leaves open, and the block-I/O S, H and P/V, stay not compared. Mostek was Zilog's licensed second source, so this is a manufacturer's document, not an emulator. It needs Sai's call with the rest of the spec.
+
+### 6.3 F bits 5 and 3, R, and HALT (*Decisions* proposed; answers Beru's items 1–3 on turichips#37)
+None of the manuals read (TM, PM, MK78515, MK3880) defines these, but each one is visible on the pins.
+
+**F[5] and F[3]** (TM p.39: "X means flag is indeterminate"). They can't just be "not compared": PUSH AF writes F to memory, and from there the bits reach any register. So our chip defines them:
+1. **Every instruction that changes any flag (any row of Table 6.0-1) sets F[5] = F[3] = 0.**
+2. Instructions that change no flag leave them unchanged.
+3. POP AF loads all 8 bits of F from memory. EX AF,AF' swaps all 8 bits.
+
+zexdoc masks these bits, so it's indifferent. zexall would fail, and isn't our acceptance test (§1).
+
+**R** (TM §2.0 item 5: "Seven bits of this 8 bit register are automatically incremented after each instruction fetch. The eighth bit will remain as programmed").
+1. R[6:0] increments by 1, mod 128, **at the end of every M1 cycle**, R[7] unchanged. That includes:
+   - each prefix fetch (CB, DD, ED, FD), so a prefixed instruction adds 2;
+   - the INTA M1 (§4.5);
+   - the NMI's dummy OCF(5) (§8.2);
+   - every halted M1 (§4.7).
+   It does **not** include the DD CB d op byte read, which is an OD, not an M1 (§6.1), so DD CB instructions add 2.
+2. The refresh address in an M1's T3–T4 is {I, R} with **R as it was at the start of that M1**, before that M1's increment.
+3. LD A,R loads R **after** both of its own M1 increments. LD R,A sets R = A at its end, after its own increments, so R equals A when the next instruction starts.
+
+**HALT** (PM p.135: the CPU "will execute NOP's to maintain memory refresh logic"; TM p.18: each halted cycle is "a normal M1 (fetch) cycle except that the data received from the memory is ignored").
+1. HALT's own fetch advances PC to HALT + 1 as usual.
+2. **Every halted M1 fetches at HALT + 1, and PC doesn't advance**; the data is ignored.
+3. The interrupt that ends the halt (§4.7) pushes **HALT + 1**.
+4. Reset ends a halt as any reset does (§5).
 
 ## 7. Behaviours to test (draft)
 `z80_system`: one `z80`, 64 KiB RAM from `$readmemh`, a CP/M stub at 0000H/0005H for zexdoc (§9, with a correct top of memory at 0006H/0007H, the 8080 lesson), a console port, IRQ/NMI/WAIT/BUSRQ stimulus inputs, and `bus_conflict`.
