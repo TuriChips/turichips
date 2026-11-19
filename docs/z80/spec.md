@@ -44,6 +44,7 @@ Active-low pins keep an `_n` suffix (`m1_n`, `mreq_n`, …), as the 8080 and 650
 ## 3. Open decisions (to settle before this spec can be normative)
 **Summary, for Sai.** Items 1–5 below, and in the body:
 - **6.** Flags Zilog marks "X" but zexdoc checks: recommend Mostek MK78515 (§6.2).
+- **8.** DAA outside Zilog's and Mostek's 13-row table, and H after DAA: neither manual defines them, and zexdoc checks them. Recommend (a), a named secondary source as with the 6502 (§6.2).
 - **7.** Per-cycle bus types: recommend Mostek MK3880 §12, with Zilog's text governing where they differ (§6.1).
 - **Also open:**
   - the mode-0 INTA length (TM +2 vs MK3880 12 T, §8.2);
@@ -404,6 +405,32 @@ Table 6.0-1, transcribed. `↕` means set by the result, `•` unchanged, `0`/`1
 | CPI; CPIR; CPD; CPDR | • | ↕ (1 if A = (HL)) | ↕ (1 if BC ≠ 0) | ↕ | 1 | **X** |
 | LD A,I; LD A,R | • | ↕ | IFF (IFF2, §8.1) | ↕ | 0 | 0 |
 | BIT b,s | • | ↕ (bit b → Z) | **X** | **X** | 0 | 1 |
+
+**DAA** (PM p.132 and Mostek MK78515 DAA page, text layer; the two tables are identical). N selects the half. "Number added to byte" is the correction added to A (mod 256):
+
+| Operation (N) | C before | A[7:4] | H before | A[3:0] | Added | C after |
+|---|---|---|---|---|---|---|
+| ADD/ADC/INC (N = 0) | 0 | 0–9 | 0 | 0–9 | 00 | 0 |
+| | 0 | 0–8 | 0 | A–F | 06 | 0 |
+| | 0 | 0–9 | 1 | 0–3 | 06 | 0 |
+| | 0 | A–F | 0 | 0–9 | 60 | 1 |
+| | 0 | 9–F | 0 | A–F | 66 | 1 |
+| | 0 | A–F | 1 | 0–3 | 66 | 1 |
+| | 1 | 0–2 | 0 | 0–9 | 60 | 1 |
+| | 1 | 0–2 | 0 | A–F | 66 | 1 |
+| | 1 | 0–3 | 1 | 0–3 | 66 | 1 |
+| SUB/SBC/DEC/NEG (N = 1) | 0 | 0–9 | 0 | 0–9 | 00 | 0 |
+| | 0 | 0–8 | 1 | 6–F | FA | 0 |
+| | 1 | 7–F | 0 | 0–9 | A0 | 1 |
+| | 1 | 6–F | 1 | 6–F | 9A | 1 |
+
+S, Z and P/V follow the result, and N is unchanged (Table 6.0-1). **H after DAA: both manuals say only "See instruction", and the instruction text doesn't define it.**
+
+**Open decision 8: DAA outside the table, and H** (Beru's review item 9). The 13 rows cover only the combinations a BCD add or subtract can produce. They don't say what DAA does for the other A, C and H combinations (e.g. N = 0, C = 0, A = 9A, H = 1), or what H becomes. zexdoc's `daa` test (`<daa,cpl,scf,ccf>`, mask D7) cycles A and F through all values and **checks H**. So the RTL has to match the real NMOS Z80 on every input to pass. Options, as for the 6502's decimal flags (turichips#32):
+- (a) adopt the NMOS behaviour from a **named secondary source**, read before use and quoted in the spec (e.g. Sean Young, *The Undocumented Z80 Documented*, its DAA section), with zexdoc as the test of it;
+- (b) specify only the 13 rows, leave the rest and H unspecified, and accept that zexdoc's `daa` line may fail (zexdoc reports per test, so the other tests still mean something). That weakens the acceptance test.
+
+**Recommendation: (a)**. It's what Sai chose for the 6502, and zexdoc is the hardware-derived check. Needs Sai's call.
 
 **Open decision 6: the "X" flags that the acceptance test checks.** zexdoc's flag masks follow "Documented flags … as per **Mostek** Z80 Technical Manual" (its source comment, line 49). They agree with Table 6.0-1 for the 16-bit adds (mask C7, H excluded) and BIT (mask 53, S and P/V excluded). But with mask D7 it **does check**, where Zilog 1977 says X:
 - **S and Z after LDI/LDD/LDIR/LDDR** (tests `ldi1`, `ldi2`, `ldd1`, `ldd2`);
