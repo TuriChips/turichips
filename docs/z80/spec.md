@@ -562,7 +562,7 @@ IFF1 "actually disables interrupts from being accepted"; IFF2 is "temporary stor
 - `wait_n` changes only at **rising** edges, the start of an H half, because it's sampled at falling edges.
 - `int_n`, `nmi_n` and `busrq_n` change only at the edge that starts a **T1H**, of any M cycle. A Tw or extra T state never starts a T1, so there's no repeated-cycle case as on the 6502.
 - `reset_n`: §5. `nmi_n` stays low for ≥ 2 T states (4 model cycles).
-- `int_n` is held low until the INTA M1 starts. It may then go high at a later T1H, as a real device releases it on acknowledge.
+- `int_n` **may change at any T1H**, like the other two. INT is level-sampled only at the §8.4 points, so a request withdrawn before acknowledge is fully specified: it simply isn't seen (Beru's re-review). That lets C8 raise and drop INT freely while IFF1 = 0.
 - INT mode 2 vectors always have bit 0 = 0 (§8.2, Beru's item 14).
 
 ## 9. Acceptance test candidates (licences to check before use)
