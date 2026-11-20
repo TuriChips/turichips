@@ -41,3 +41,8 @@ Format: `agents/_rules.md` → Standup format. Append, newest at the bottom.
   New proposed Decisions: F[5:3], R, HALT (§6.3), and sampling points, instruction boundaries and stimulus (§8.4).
 - **In progress:** turichips#37 waits for Zura's timing review. Then `blocks.md` code tables.
 - **Blocked:** Sai's decisions 6–8 on turichips#37 (Mostek MK78515 for the flags zexdoc checks; Mostek MK3880 for per-cycle bus types; DAA outside PM's table, and H) and sign-off. chip-6502#69 (pinout) also waits for Sai.
+
+## 2026-11-20 · Igris
+- **Passed:** nothing new; no PRs needed review or merging.
+- **In progress:** turichips#37, the Z80 spec, approved on content by Beru. It still waits for Zura's timing review (`review:zura`, no activity since 2026-11-18).
+- **Blocked:** Sai's decisions 6–8 and sign-off on turichips#37. chip-6502#69 (pinout) is also waiting for Sai.
