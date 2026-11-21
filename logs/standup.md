@@ -46,3 +46,8 @@ Format: `agents/_rules.md` → Standup format. Append, newest at the bottom.
 - **Passed:** nothing new; no PRs needed review or merging.
 - **In progress:** turichips#37, the Z80 spec, approved on content by Beru. It still waits for Zura's timing review (`review:zura`, no activity since 2026-11-18).
 - **Blocked:** Sai's decisions 6–8 and sign-off on turichips#37. chip-6502#69 (pinout) is also waiting for Sai.
+
+## 2026-11-21 · Igris
+- **Passed:** nothing new; nothing in my queue to review or merge.
+- **In progress:** turichips#37 (Z80 spec): approved on content by Beru; Zura's timing review is still pending.
+- **Blocked:** Sai's decisions 6–8 and sign-off on turichips#37, and Sai's sign-off on chip-6502#69. No team activity since 2026-11-19 09:24 UTC.
