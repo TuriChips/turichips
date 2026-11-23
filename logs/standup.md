@@ -21,3 +21,43 @@ Format: `agents/_rules.md` → Standup format. Append, newest at the bottom.
 - **Passed:** chip-6502 acceptance tests reproduced on the RTL myself: Dormann functional, success trap 3469h at 96,241,375 clocks, 0 bus conflicts (#41); Clark decimal with all five checks, PASS at 53,954,357 clocks (#57); demo log byte-identical at 1beacac (#56). Ran Beru's directed NMI regression on #43: 8/8 PASS. Spec decisions merged after Sai's sign-off: taken-branch dummy reads (#21, 80,000 SST branch vectors, 0 differences per Beru), interrupt poll rule (#27, answers #25), reset comparison + RDY in reset (#30, answers #29/#40), decode contract (#39). Merged the full m6502 (#10, #16, #22–#24, #26, #28, #33, #43), C8 in CI (#38, #53), synthesis (#45, #55) and C1–C7 (#12), all with green CI.
 - **In progress:** 6502 release: C1–C7 are on main but not in CI (#58, Titus); gate-level C8 (#50, review:titus); Homer's decimal evidence log, README and STORY (#8).
 - **Blocked:** nothing for Sai. TuriChips/.github#1 (my org README) waits for Homer to merge (review:homer added).
+
+## 2026-11-18 · Igris
+- **Passed:** 6502 released and public (chip-6502#65, Sai's sign-off, after my history audit: no third-party files, no secrets). Merged with green CI after reviewing:
+  - C1–C7 in CI (#59, #61), gate-level C8 (#50), final C8 (#62);
+  - README (#64, corrected from my review), STORY (#66, #67), demo and decimal logs (#56, #60), reproduced byte-identical by me;
+  - website card turichips.github.io#30, all 40 pins checked against Hardware Manual Figure 1.15.
+  
+  Z80 (chip #4) spec draft turichips#37, from Zilog's 1977/78 manuals plus Mostek's MK78515 and MK3880:
+  - half-T-state pin tables for every bus cycle;
+  - 698 documented opcodes;
+  - all 11 instruction groups with cycle types;
+  - flags, interrupts, reset, C1–C8;
+  - zexdoc licence checked (GPL v2+).
+- **In progress:** turichips#37 waits for Beru's and Zura's review, then Sai's decisions (§3 summary: Mostek for the flags zexdoc checks, MK3880 for per-cycle bus types). Then `blocks.md` code tables.
+- **Blocked:** chip-6502#69 (pinout) and turichips#37 need Sai's sign-off. Reviews on #37 have been pending since 09:53 UTC.
+
+## 2026-11-19 · Igris
+- **Passed:** answered all 16 items of Beru's model-builder review of the Z80 spec (turichips#37). Beru re-reviewed and **approved the content** (08:23 UTC). New from sources:
+  - DAA table (PM p.132, the same as Mostek's);
+  - block I/O A8–A15 from Zilog's 1994 User's Manual (output shows B−1, input shows B);
+  - signed d and JR offset (PM pp.30, 223).
+  
+  New proposed Decisions: F[5:3], R, HALT (§6.3), and sampling points, instruction boundaries and stimulus (§8.4).
+- **In progress:** turichips#37 waits for Zura's timing review. Then `blocks.md` code tables.
+- **Blocked:** Sai's decisions 6–8 on turichips#37 (Mostek MK78515 for the flags zexdoc checks; Mostek MK3880 for per-cycle bus types; DAA outside PM's table, and H) and sign-off. chip-6502#69 (pinout) also waits for Sai.
+
+## 2026-11-20 · Igris
+- **Passed:** nothing new; no PRs needed review or merging.
+- **In progress:** turichips#37, the Z80 spec, approved on content by Beru. It still waits for Zura's timing review (`review:zura`, no activity since 2026-11-18).
+- **Blocked:** Sai's decisions 6–8 and sign-off on turichips#37. chip-6502#69 (pinout) is also waiting for Sai.
+
+## 2026-11-21 · Igris
+- **Passed:** nothing new; nothing in my queue to review or merge.
+- **In progress:** turichips#37 (Z80 spec): approved on content by Beru; Zura's timing review is still pending.
+- **Blocked:** Sai's decisions 6–8 and sign-off on turichips#37, and Sai's sign-off on chip-6502#69. No team activity since 2026-11-19 09:24 UTC.
+
+## 2026-11-22 · Igris
+- **Passed:** nothing new; my queue had no reviews or merges.
+- **In progress:** turichips#37, the Z80 spec. It's unchanged since 2026-11-19: approved on content by Beru, and Zura's review is pending.
+- **Blocked:** Sai's decisions 6–8 and sign-off on turichips#37, and Sai's sign-off on chip-6502#69.

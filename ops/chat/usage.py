@@ -13,13 +13,13 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import db
-from config import AGENTS, SYSTEM, USAGE_ONLY_SEATS
+from config import POOL, SYSTEM, USAGE_ONLY_SEATS
 
 IST = timezone(timedelta(hours=5, minutes=30))
 STALE_SECONDS = 30 * 60
 WARN_AT = 0.9
 WINDOWS = ("five_hour", "seven_day")
-SEATS = sorted({v["account"] for v in AGENTS.values() if v.get("account")} | set(USAGE_ONLY_SEATS))
+SEATS = sorted(set(POOL) | set(USAGE_ONLY_SEATS))
 
 
 def _today() -> str:
@@ -45,6 +45,11 @@ def _windows(info: dict) -> dict:
     return out
 
 
+def current(seat: str) -> dict:
+    """Last known windows for a seat: {"windows": {...}, "status", "updated"}."""
+    return _load(f"usage:{seat}", {})
+
+
 def record(seat: str, rate_info: dict | None, result: dict | None):
     if not seat:
         return
@@ -64,13 +69,18 @@ def record(seat: str, rate_info: dict | None, result: dict | None):
         d["output"] += u.get("output_tokens") or 0
         d["cache_read"] += u.get("cache_read_input_tokens") or 0
         d["cache_write"] += u.get("cache_creation_input_tokens") or 0
-        d["cost"] += result.get("total_cost_usd") or 0.0
+        # total_cost_usd is the whole session's total so far, so only the growth since the last turn counts.
+        sid = result.get("session_id")
+        total = result.get("total_cost_usd") or 0.0
+        prev = float(db.kv_get(f"cost_seen:{sid}", "0") or 0) if sid else 0.0
+        d["cost"] += max(0.0, total - prev)
+        if sid:
+            db.kv_set(f"cost_seen:{sid}", str(total))
         db.kv_set(key, json.dumps(d))
 
 
 def _agents_on(seat):
-    names = [v["name"] for v in AGENTS.values() if v.get("account") == seat]
-    return names or [USAGE_ONLY_SEATS.get(seat, "no agents")]
+    return ["pool: any agent"] if seat in POOL else [USAGE_ONLY_SEATS.get(seat, "no agents")]
 
 
 def _warn(seat, wins):
@@ -78,7 +88,7 @@ def _warn(seat, wins):
     for name in WINDOWS:
         w = wins.get(name) or {}
         util, status = w.get("utilization") or 0, w.get("status") or "allowed"
-        if util < WARN_AT and status == "allowed":
+        if util < WARN_AT and status != "rejected":       # allowed_warning alone is not worth a post
             continue
         key = f"usage_warn:{seat}:{name}:{w.get('resetsAt')}"
         if db.kv_get(key):
@@ -87,7 +97,7 @@ def _warn(seat, wins):
         label = {"five_hour": "5-hour", "seven_day": "weekly"}[name]
         reset = (datetime.fromtimestamp(w["resetsAt"], IST).strftime("%a %H:%M IST")
                  if w.get("resetsAt") else "unknown")
-        state = "is **blocked**" if status != "allowed" else f"is at **{round(util * 100)}%**"
+        state = "is **blocked**" if status == "rejected" else f"is at **{round(util * 100)}%**"
         db.add("needs-sai", SYSTEM["id"],
                f"⚠️ **{seat}** ({' + '.join(_agents_on(seat))}) {state} of its {label} limit. Resets {reset}.")
 

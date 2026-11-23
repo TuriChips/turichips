@@ -10,11 +10,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import db
-from config import AGENTS, CHANNELS, DM_IDLE_RESET_SECONDS, MANAGER, SYSTEM, WORKSPACE
+from config import AGENTS, CHANNELS, CHAT_FALLBACK_SEAT, DM_IDLE_RESET_SECONDS, MANAGER, MODELS, SYSTEM, TASK_KINDS, WORKSPACE
 from config import ROUTER_DEFAULT
 from router import is_status_question, pick, tagged
 from runner import run_turn
-import shift
+import companylog as log
+import dispatcher as shift
+import seats
 import usage
 import os
 
@@ -45,6 +47,11 @@ CHANNEL_IDS = {c["id"] for c in CHANNELS} | {f"dm-{a}" for a in AGENTS}
 async def start_shifts():
     shift.start(working, agent_locks, slots)
     usage.start()
+
+
+@app.get("/api/tasks")
+def tasks_view():
+    return {"tasks": log.tasks(), "seats": [seats.state(s) for s in seats.POOL], "throttled": seats.throttled()}
 
 
 @app.get("/api/usage")
@@ -104,6 +111,7 @@ async def post(m: NewMessage):
         if not parent or parent["channel"] != m.channel or parent["parent_id"] is not None:
             raise HTTPException(400)
     msg = db.add(m.channel, MANAGER["id"], text, m.parent_id)
+    log.append("chat", "sai", f"#{m.channel}: {text}", actor="sai")
     reply = shift.command(text)
     if reply is not None:                # /pause, /resume, /status: answered by the scheduler, no agent runs
         db.add(m.channel, SYSTEM["id"], reply, m.parent_id)
@@ -180,15 +188,23 @@ async def respond(agent, channel, reply_parent, key, idle, text, msg_id):
                       "You are answering this status question for the whole team (rule 11): nobody else will "
                       "reply. Check GitHub for anything you need to confirm.\n\n" + prompt)
         async with slots:
+            # Chat runs on a pool seat like any task (the same one as this conversation's last turn if it's
+            # fine), and on Sai's own seat when the whole pool is out, so Sai can always reach the team.
+            seat = seats.pick(prefer=db.kv_get(f"chat_seat:{key}"), urgent=True) or CHAT_FALLBACK_SEAT
+            seats.acquire(seat)
+            db.kv_set(f"chat_seat:{key}", seat)
             working[agent] = {"channel": channel, "parent_id": reply_parent}
             try:
-                answer, ok = await run_turn(agent, prompt, session, resume)
+                answer, ok = await run_turn(agent, prompt, session, resume,
+                                            model=MODELS[TASK_KINDS["chat"]["model"]], seat=seat)
             except Exception as e:  # never leave the user without a reply
                 answer, ok = f"Something broke while I was working: `{e}`", False
             finally:
                 working.pop(agent, None)
+                seats.release(seat)
         if ok:
             db.save_session(key, session, msg_id)
         if ok and silent(answer):        # rule 12: idle means silent, so nothing is posted
             return
         db.add(channel, agent, answer, reply_parent)
+        log.append("chat", "reply", f"#{channel}: {answer[:600]}", actor=agent)
