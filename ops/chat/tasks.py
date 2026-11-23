@@ -55,16 +55,30 @@ def author_of_pr(pr) -> str | None:
     return m.group(1) if m and m.group(1) in AGENTS else None
 
 
-def ci_state(pr) -> str:
-    checks = pr.get("statusCheckRollup") or []
-    if not checks:
+# CI comes from GitHub Actions runs, not statusCheckRollup: the org's fine-grained token can't read commit
+# statuses/check runs, and asking for statusCheckRollup fails the whole PR query.
+FAILED = {"failure", "timed_out", "cancelled", "action_required", "startup_failure"}
+
+
+def runs_by_sha(repo) -> dict[str, list[dict]] | None:
+    runs = gh("run", "list", "-R", repo, "--limit", "200",
+              "--json", "headSha,status,conclusion,databaseId,workflowName,createdAt")
+    if runs is None:
+        return None
+    out: dict[str, dict[str, dict]] = {}
+    for r in sorted(runs, key=lambda r: r.get("createdAt") or ""):   # newest run per workflow wins
+        out.setdefault(r["headSha"], {})[r.get("workflowName") or ""] = r
+    return {sha: list(w.values()) for sha, w in out.items()}
+
+
+def ci_state(runs: list[dict] | None) -> str:
+    if not runs:
         return "none"
-    states = {(c.get("conclusion") or c.get("state") or c.get("status") or "").upper() for c in checks}
-    if states & {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED"}:
+    if any(r.get("status") != "completed" for r in runs):
+        return "running"
+    if any((r.get("conclusion") or "") in FAILED for r in runs):
         return "failing"
-    if states <= {"SUCCESS", "NEUTRAL", "SKIPPED"}:
-        return "green"
-    return "running"
+    return "green"
 
 
 # ---------- Snapshot ----------
@@ -79,8 +93,9 @@ def snapshot() -> dict | None:
         issues = gh("issue", "list", "-R", full, "--state", "open", "--limit", "100",
                     "--json", "number,title,labels,comments")
         prs = gh("pr", "list", "-R", full, "--state", "open", "--limit", "100", "--json",
-                 "number,title,headRefName,headRefOid,labels,statusCheckRollup,mergeable,comments,reviews")
-        if issues is None or prs is None:
+                 "number,title,headRefName,headRefOid,labels,mergeable,comments,reviews")
+        runs = runs_by_sha(full) if prs else {}
+        if issues is None or prs is None or runs is None:
             return None                  # a partial read would close tasks that still exist
         for i in issues:
             owner = owner_of_issue(i)
@@ -94,10 +109,12 @@ def snapshot() -> dict | None:
                 fp=json.dumps([len(i.get("comments") or []), labels, i["title"]]), info={})
         for p in prs:
             labels = {lb["name"] for lb in p.get("labels", [])}
-            ci, ref = ci_state(p), f"{full}#{p['number']}"
+            pr_runs = runs.get(p.get("headRefOid"), [])
+            ci, ref = ci_state(pr_runs), f"{full}#{p['number']}"
             conflict = p.get("mergeable") == "CONFLICTING"
             ncom, nrev = len(p.get("comments") or []), len(p.get("reviews") or [])
-            info = {"branch": p["headRefName"], "ci": ci, "conflict": conflict}
+            info = {"branch": p["headRefName"], "ci": ci, "conflict": conflict,
+                    "failed_runs": [r["databaseId"] for r in pr_runs if (r.get("conclusion") or "") in FAILED]}
             author = author_of_pr(p)
             if author:
                 kind = "fix-ci" if ci == "failing" else "conflict" if conflict else "pr-followup"
@@ -178,14 +195,12 @@ def _comments(items, n=10):
     return "\n".join(out) or "(none)"
 
 
-def _failed_ci_log(repo, pr) -> str:
-    for c in pr.get("statusCheckRollup") or []:
-        if (c.get("conclusion") or "").upper() in ("FAILURE", "TIMED_OUT", "CANCELLED", "ERROR"):
-            m = re.search(r"/actions/runs/(\d+)", c.get("detailsUrl") or "")
-            if m:
-                out = gh("run", "view", m.group(1), "-R", repo, "--log-failed", json_out=False, timeout=120) or ""
-                lines = out.splitlines()[-150:]
-                return f"Failing check: {c.get('name')}\n```\n" + "\n".join(lines) + "\n```"
+def _failed_ci_log(repo, run_ids) -> str:
+    for rid in run_ids or []:
+        out = gh("run", "view", str(rid), "-R", repo, "--log-failed", json_out=False, timeout=120) or ""
+        if out:
+            lines = out.splitlines()[-150:]
+            return f"Failing run {rid}\n```\n" + "\n".join(lines) + "\n```"
     return "(no failing run log found)"
 
 
@@ -198,15 +213,15 @@ def brief(t: dict) -> str:
                 f"Labels: {', '.join(lb['name'] for lb in i.get('labels', [])) or 'none'}\n\n"
                 f"{_cut(i.get('body'), 12000)}\n\n#### Latest comments\n{_comments(i.get('comments'))}")
     p = gh("pr", "view", n, "-R", repo, "--json",
-           "title,body,headRefName,baseRefName,labels,comments,reviews,statusCheckRollup,mergeable,files") or {}
+           "title,body,headRefName,baseRefName,labels,comments,reviews,mergeable,files") or {}
     files = ", ".join(f["path"] for f in (p.get("files") or [])[:60])
     parts = [f"### PR {t['ref']}: {p.get('title', t['title'])}",
-             f"Branch {p.get('headRefName')} → {p.get('baseRefName')} · CI {ci_state(p)} · "
+             f"Branch {p.get('headRefName')} → {p.get('baseRefName')} · CI {t['info'].get('ci', '?')} · "
              f"mergeable {p.get('mergeable')} · labels {', '.join(lb['name'] for lb in p.get('labels', [])) or 'none'}",
              f"Files: {files}", "", _cut(p.get("body"), 6000), "",
              "#### Reviews", _comments(p.get("reviews")), "", "#### Latest comments", _comments(p.get("comments"))]
     if t["kind"] == "fix-ci":
-        parts += ["", "#### Failing CI", _failed_ci_log(repo, p)]
+        parts += ["", "#### Failing CI", _failed_ci_log(repo, t["info"].get("failed_runs"))]
     if t["role"] == "review" or t["kind"] in ("conflict",):
         diff = gh("pr", "diff", n, "-R", repo, json_out=False, timeout=120) or ""
         parts += ["", "#### Diff", "```diff", _cut(diff, 40000), "```"]
