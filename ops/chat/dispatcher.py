@@ -238,10 +238,11 @@ async def poll():
     changed = tasks.sync(snap["tasks"])
     for pr in snap["merge"]:
         await merge(pr)
+    busy = {b for t in log.tasks() if (b := worktrees.branch_of(t))}
     for t in log.tasks(("done",)):
         if t["role"] in ("issue", "pr", "review") and not (t["info"] or {}).get("cleaned"):
-            what = await asyncio.to_thread(worktrees.remove, t)
-            if what != "kept (unsaved work)":
+            what = await asyncio.to_thread(worktrees.remove, t, busy)
+            if what in ("removed", "none"):
                 log.update(t["key"], info={**(t["info"] or {}), "cleaned": True})
     maybe_plan()
     if changed or time.time() - _last_tick >= DISPATCH["tick_seconds"]:

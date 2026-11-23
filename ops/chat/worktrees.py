@@ -4,6 +4,8 @@ Each org repo is cloned once into ~/repos/<repo>. A task gets ~/tasks/<agent>/<r
 - an author's PR task: on the PR's branch, tracking origin
 - a review: detached at the PR's head (reviews never push)
 - an issue: on branch <agent>/<repo>-<n> (an existing remote branch of that name is picked up)
+A branch lives in one worktree only: the PR an issue task opened reuses the issue's worktree (git refuses to
+check one branch out twice), and a worktree is never removed while an active task still works on its branch.
 When the task is done the worktree is removed, unless it holds uncommitted or unpushed work.
 """
 import os
@@ -54,6 +56,27 @@ def default_branch(repo: Path) -> str:
     return r.stdout.strip() or "origin/main"
 
 
+def branch_of(t: dict) -> str | None:
+    """The branch an author's task works on (None for reviews, which are detached)."""
+    if t["role"] == "pr":
+        return t["info"]["branch"]
+    if t["role"] == "issue":
+        return f"{t['owner']}/{t['repo'].split('/')[1]}-{t['number']}"
+    return None
+
+
+def _checked_out(repo: Path, branch: str) -> Path | None:
+    """The worktree that already has this branch checked out, if any."""
+    out = _git("worktree", "list", "--porcelain", cwd=repo).stdout
+    path = None
+    for line in out.splitlines():
+        if line.startswith("worktree "):
+            path = Path(line[len("worktree "):])
+        elif line == f"branch refs/heads/{branch}" and path and path.exists():
+            return path
+    return None
+
+
 def ensure(t: dict) -> tuple[Path, str]:
     """(worktree path, branch description) for a GitHub-backed task. Blocking: call in a thread."""
     with _lock(t["repo"]):
@@ -70,10 +93,10 @@ def _ensure(t: dict) -> tuple[Path, str]:
         else:
             _add(repo, "--detach", str(wt), target)
         return wt, f"detached at {target} (review only, do not push)"
-    if t["role"] == "pr":
-        branch = t["info"]["branch"]
-    else:
-        branch = f"{t['owner']}/{t['repo'].split('/')[1]}-{t['number']}"
+    branch = branch_of(t)
+    other = _checked_out(repo, branch)
+    if other and other != wt:
+        return other, f"branch {branch}"
     if not wt.exists():
         has_local = _git("rev-parse", "--verify", "-q", f"refs/heads/{branch}", cwd=repo).returncode == 0
         has_remote = _git("rev-parse", "--verify", "-q", f"refs/remotes/origin/{branch}", cwd=repo).returncode == 0
@@ -93,16 +116,19 @@ def _add(repo, *args):
         raise RuntimeError(f"worktree add failed: {r.stderr.strip()[-300:]}")
 
 
-def remove(t: dict) -> str:
-    """Remove a finished task's worktree if nothing would be lost. Returns what happened."""
+def remove(t: dict, busy: set[str] = frozenset()) -> str:
+    """Remove a finished task's worktree if nothing would be lost and no active task (busy: their branches)
+    still works in it. Returns "removed", "none" or why it was kept."""
     with _lock(t["repo"]):
-        return _remove(t)
+        return _remove(t, busy)
 
 
-def _remove(t: dict) -> str:
+def _remove(t: dict, busy) -> str:
     wt = path_for(t)
     if not wt.exists():
         return "none"
+    if _git("rev-parse", "--abbrev-ref", "HEAD", cwd=wt).stdout.strip() in busy:
+        return "kept (in use)"
     dirty = _git("status", "--porcelain", cwd=wt).stdout.strip()
     ahead = _git("log", "--oneline", "@{u}..", cwd=wt)
     unpushed = ahead.returncode == 0 and ahead.stdout.strip()
