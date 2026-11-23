@@ -17,6 +17,16 @@ Format: `agents/_rules.md` → Standup format. Append, newest at the bottom.
 - **In progress:** 4004 release: #50 approved, waits for Sai's sign-off, then chip-4004 goes public and turichips.github.io#13 goes live. 8080 spec draft turichips#23 (§10 against the 1975 User's Manual and the 8080/8085 ALP manual; 12 [check] left, full §4 table to write).
 - **Blocked:** #50 on Sai's sign-off. My approved chip-4004#24 and turichips#20 need a teammate to merge (asked Tesla and Zura).
 
+## 2026-11-15 · Igris
+- **Passed:** chip-4004 released (chip-4004#50, signed off by Sai), repo public after my history audit, card live (turichips.github.io#22). chip-8080 spec v1 and blocks.md v1.1/v1.2 written and merged (chip-8080#5, #25, #40), plus DAA (#27) and halt/hold (#39, #45) fixes, every [check] closed with a page ref or a decision. Reproduced on fresh clones: 8080PRE on the RTL, 'Preliminary tests complete' after 9,229 clocks, `check_log.py` PASS (chip-8080#50); acceptance test 3, all five programs PASS (madd 1A6AB7, msub 060B52, adsub 0E2D, dsub 9629000000000000, dadd 2179) (#56–#58, log `logs/acc3/run.log` via #61); demo `DEMO PASS ... = 5050` (#62). Merged the full 8080 RTL stack (#19/#30/#31) with CI green on the combined head.
+- **In progress:** spec §9 acceptance set PR chip-8080#55, and the 8080 release checklist (full 8080EXM nightly, gate-level C8 #60, write-up).
+- **Blocked:** #55 and #60 wait for Sai's sign-off.
+
+## 2026-11-16 · Igris
+- **Passed:** **chip-8080 released** (#73/#74 signed off by Sai, card live via turichips.github.io#27; 40 pins checked, drawing rendered). Release evidence checked independently: the full 8080EXM, 25/25 PASS, `logs/acc1/8080exm.log` byte-identical to CI run 43840440461's artifact, and `check_log.py` re-run by me → PASS (chip-8080#72). The first nightly's failure was diagnosed (24/25, `<inr,dcr> a`), and the root cause was our BDOS stub's word at 0006h (Zura), spec gap fixed in chip-8080#69. Post-release history audit of chip-8080: clean (#14). 6502 spec v0 opened (turichips#32), with §10 checks from page images: JMP ($xxFF) wrap (Programming Manual p.141), interrupt/BRK sequence and BRK sets I (pp.131, 144), reset sequence (pp.125–127), I/D rules (pp.26–27), RDY (Hardware Manual p.37).
+- **In progress:** transcribing Hardware Manual Appendix A into 6502 spec §4.
+- **Blocked:** turichips#32 needs Sai's decision on decimal-mode N/V/Z (three options in §6).
+
 ## 2026-11-17 · Igris
 - **Passed:** chip-6502 acceptance tests reproduced on the RTL myself: Dormann functional, success trap 3469h at 96,241,375 clocks, 0 bus conflicts (#41); Clark decimal with all five checks, PASS at 53,954,357 clocks (#57); demo log byte-identical at 1beacac (#56). Ran Beru's directed NMI regression on #43: 8/8 PASS. Spec decisions merged after Sai's sign-off: taken-branch dummy reads (#21, 80,000 SST branch vectors, 0 differences per Beru), interrupt poll rule (#27, answers #25), reset comparison + RDY in reset (#30, answers #29/#40), decode contract (#39). Merged the full m6502 (#10, #16, #22–#24, #26, #28, #33, #43), C8 in CI (#38, #53), synthesis (#45, #55) and C1–C7 (#12), all with green CI.
 - **In progress:** 6502 release: C1–C7 are on main but not in CI (#58, Titus); gate-level C8 (#50, review:titus); Homer's decimal evidence log, README and STORY (#8).
