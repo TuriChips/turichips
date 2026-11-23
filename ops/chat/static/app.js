@@ -15,7 +15,6 @@ const md = (s) => (window.marked && window.DOMPurify)
   : escape(s).replace(/\n/g, "<br>");
 const time = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const day = (ts) => new Date(ts * 1000).toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
-const modelName = (m) => (m || "").replace(/^claude-/, "").replace(/-(\d+)-(\d+)$/, " $1.$2").replace(/^./, (c) => c.toUpperCase());
 const label = (ch) => ch.startsWith("dm-") ? S.meta.agents[ch.slice(3)].name : `# ${ch}`;
 
 function avatar(p, cls = "avatar") {
@@ -172,7 +171,7 @@ async function openChannel(id) {
   $("title").textContent = label(id);
   const c = S.meta.channels.find((x) => x.id === id);
   const ag = c ? null : S.meta.agents[id.slice(3)];
-  $("topic").textContent = c ? c.topic : [ag.role, modelName(ag.model), ag.account].filter(Boolean).join(" · ");
+  $("topic").textContent = c ? c.topic : ag.role;
   $("input").placeholder = `Message ${label(id)}`;
   closeThread();
   renderSidebar();

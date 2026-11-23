@@ -15,41 +15,65 @@ CHANNELS = [
     {"id": "needs-sai", "topic": "Waiting on Sai: sai-review PRs, decisions, access. Plus a daily list of sai-review PRs."},
 ]
 
-# Shifts (shift.py): agents keep working from GitHub without being messaged.
-SHIFT = {
-    "enabled": os.environ.get("SHIFT_ENABLED", "1") == "1",   # SHIFT_ENABLED=0 turns the scheduler off
+# Dispatcher (dispatcher.py): GitHub becomes tasks on a board; each ready task goes to its owner's persona,
+# with a model picked by task kind and a seat picked by headroom. See checkpoint.md for the design.
+DISPATCH = {
+    "enabled": os.environ.get("SHIFT_ENABLED", "1") == "1",   # SHIFT_ENABLED=0 turns the dispatcher off
     "org": "TuriChips",              # every repo in this org is scanned for issues and PRs
-    "merger": "igris",                # merges approved, green PRs and keeps the queue full
-    "poll_seconds": 120,             # how often GitHub is read
-    "work_gap_seconds": 5 * 60,      # after a DONE turn, while the agent still has open items
-    "blocked_gap_seconds": 30 * 60,  # after BLOCKED
-    "idle_gap_seconds": 60 * 60,     # after IDLE, or when nothing is assigned
-    "max_parallel": 3,               # work turns at once; leaves room in MAX_PARALLEL_AGENTS for Sai's chat
-    "session_reset_seconds": 12 * 3600,
+    "poll_seconds": 120,             # how often GitHub is read; any change dispatches at once
+    "tick_seconds": 5 * 60,          # dispatch at least this often even when nothing changed
+    "continue_gap_seconds": 5 * 60,  # an issue task that ended DONE continues after this
+    "planner_gap_seconds": 60 * 60,  # the planner (Igris) runs at most this often
+    "planner_idle_agents": 4,        # ...and only when at least this many agents have nothing ready or running
+    "stall_seconds": 20 * 60,        # no output from a running turn for this long: warn in #needs-sai (never kill)
+    "task_timeout_seconds": 6 * 3600,  # safety net only; long-horizon turns are the point
     "sai_digest_hour_ist": 10,       # daily list of open sai-review PRs in #needs-sai, first poll after this hour
 }
+
+# Seats: a shared pool, not one seat per agent. Any persona runs on any pool seat; the budget watcher
+# (seats.py) picks the seat with the most room against its weekly pace and keeps a buffer on every seat.
+POOL = ["seat1", "seat2", "seat3"]   # seat0 (Sai's own) may join later
+WEEKLY_BUFFER = 0.08                 # never plan to use the last 8% of a seat's week
+FIVE_HOUR_CEILING = 0.95             # no new launches on a seat past this in its 5-hour window
+SEAT_MAX_RUNNING = 2                 # turns at once per seat (task + chat)
+AHEAD_OF_PACE = 0.10                 # every seat this far ahead of weekly pace: only urgent work goes out
+CHAT_FALLBACK_SEAT = "seat0"         # chat with Sai still works when the whole pool is out
+
+# Models are picked per task kind, not per agent.
+MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5"}
+TASK_KINDS = {   # priority: lower goes first. urgent: still dispatched when every seat is ahead of pace.
+    "fix-ci":      {"priority": 1, "model": "sonnet", "urgent": True,  "label": "Fix failing CI"},
+    "conflict":    {"priority": 2, "model": "sonnet", "urgent": True,  "label": "Resolve merge conflict"},
+    "review":      {"priority": 3, "model": "sonnet", "urgent": True,  "label": "Review PR"},
+    "break":       {"priority": 3, "model": "opus",   "urgent": True,  "label": "Break PR (adversarial review)"},
+    "pr-followup": {"priority": 4, "model": "sonnet", "urgent": False, "label": "Follow up on your PR"},
+    "implement":   {"priority": 5, "model": "sonnet", "urgent": False, "label": "Work on issue"},
+    "spec":        {"priority": 5, "model": "opus",   "urgent": False, "label": "Spec work"},
+    "plan":        {"priority": 6, "model": "opus",   "urgent": False, "label": "Plan the queue"},
+    "chat":        {"priority": 0, "model": "sonnet", "urgent": True,  "label": "Chat"},
+}
+REVIEW_KIND = {"beru": "break"}      # reviewer -> kind (Beru's reviews are adversarial, on Opus)
+ISSUE_KIND = {"igris": "spec"}       # owner -> kind for their issues (Igris's issues are spec work, on Opus)
+PLANNER = "igris"
 
 # Posts from the scheduler itself (command replies) use this author.
 SYSTEM = {"id": "shift", "name": "Shift", "role": "Scheduler", "color": "#475569"}
 
-# Every agent also gets a direct-message channel: dm-<id>.
-# model: pinned so a change in Claude Code's default never silently changes an agent.
-# Opus for Igris (spec errors spread to everyone) and Beru (subtle bugs); Sonnet for the rest.
-# Seats with no agents that the Usage tab still tracks, with the label shown in place of agent names.
+# Seats outside the pool that the Usage tab still tracks, with the label shown in place of agent names.
 # seat0 is Sai's own account (CLAUDE_CODE_OAUTH_TOKEN: the router and Sai's own Claude Code), seat4 is shared outside the company.
 USAGE_ONLY_SEATS = {"seat0": "Sai + router", "seat4": "shared, no agents"}
 
-# account: which Claude Team seat the agent runs on. Its token is CLAUDE_TOKEN_<ACCOUNT> in the env file
-# (falls back to CLAUDE_CODE_OAUTH_TOKEN). Opus agents and heavy builders are spread across seats.
+# The personas. Every agent also gets a direct-message channel: dm-<id>.
+# Seat tokens are CLAUDE_TOKEN_<SEAT> in the env file (a seat without one falls back to CLAUDE_CODE_OAUTH_TOKEN).
 AGENTS = {
-    "igris":  {"name": "Igris",  "file": "architect",       "role": "Architect",                         "model": "claude-opus-5-5", "account": "seat1", "color": "#7c3aed"},
-    "zura":  {"name": "Zura",  "file": "designer-a",      "role": "Designer A (control)",              "model": "claude-sonnet-5-5", "account": "seat3", "color": "#2563eb"},
-    "ada":  {"name": "Ada",  "file": "designer-b",      "role": "Designer B (data)",                 "model": "claude-sonnet-5-5", "account": "seat2", "color": "#0891b2"},
-    "titus": {"name": "Titus", "file": "verification-a",  "role": "Verification A (test builder)",     "model": "claude-sonnet-5-5", "account": "seat3", "color": "#059669"},
-    "beru":  {"name": "Beru",  "file": "verification-b",  "role": "Verification B (breaker)",          "model": "claude-opus-5-5", "account": "seat2", "color": "#dc2626"},
-    "tesla":  {"name": "Tesla",  "file": "infrastructure",  "role": "Infrastructure",                    "model": "claude-sonnet-5-5", "account": "seat1", "color": "#64748b"},
-    "leo": {"name": "Leo", "file": "physical-design", "role": "Physical Design",                   "model": "claude-sonnet-5-5", "account": "seat3", "color": "#d97706"},
-    "homer":  {"name": "Homer",  "file": "software-docs",   "role": "Software and Docs",                 "model": "claude-sonnet-5-5", "account": "seat2", "color": "#db2777"},
+    "igris":  {"name": "Igris",  "file": "architect",       "role": "Architect",                         "color": "#7c3aed"},
+    "zura":  {"name": "Zura",  "file": "designer-a",      "role": "Designer A (control)",              "color": "#2563eb"},
+    "ada":  {"name": "Ada",  "file": "designer-b",      "role": "Designer B (data)",                 "color": "#0891b2"},
+    "titus": {"name": "Titus", "file": "verification-a",  "role": "Verification A (test builder)",     "color": "#059669"},
+    "beru":  {"name": "Beru",  "file": "verification-b",  "role": "Verification B (breaker)",          "color": "#dc2626"},
+    "tesla":  {"name": "Tesla",  "file": "infrastructure",  "role": "Infrastructure",                    "color": "#64748b"},
+    "leo": {"name": "Leo", "file": "physical-design", "role": "Physical Design",                   "color": "#d97706"},
+    "homer":  {"name": "Homer",  "file": "software-docs",   "role": "Software and Docs",                 "color": "#db2777"},
 }
 
 ROUTER_DEFAULT = "igris"
