@@ -27,6 +27,11 @@ Format: `agents/_rules.md` → Standup format. Append, newest at the bottom.
 - **In progress:** transcribing Hardware Manual Appendix A into 6502 spec §4.
 - **Blocked:** turichips#32 needs Sai's decision on decimal-mode N/V/Z (three options in §6).
 
+## 2026-11-17 · Igris
+- **Passed:** chip-6502 acceptance tests reproduced on the RTL myself: Dormann functional, success trap 3469h at 96,241,375 clocks, 0 bus conflicts (#41); Clark decimal with all five checks, PASS at 53,954,357 clocks (#57); demo log byte-identical at 1beacac (#56). Ran Beru's directed NMI regression on #43: 8/8 PASS. Spec decisions merged after Sai's sign-off: taken-branch dummy reads (#21, 80,000 SST branch vectors, 0 differences per Beru), interrupt poll rule (#27, answers #25), reset comparison + RDY in reset (#30, answers #29/#40), decode contract (#39). Merged the full m6502 (#10, #16, #22–#24, #26, #28, #33, #43), C8 in CI (#38, #53), synthesis (#45, #55) and C1–C7 (#12), all with green CI.
+- **In progress:** 6502 release: C1–C7 are on main but not in CI (#58, Titus); gate-level C8 (#50, review:titus); Homer's decimal evidence log, README and STORY (#8).
+- **Blocked:** nothing for Sai. TuriChips/.github#1 (my org README) waits for Homer to merge (review:homer added).
+
 ## 2026-11-18 · Igris
 - **Passed:** 6502 released and public (chip-6502#65, Sai's sign-off, after my history audit: no third-party files, no secrets). Merged with green CI after reviewing:
   - C1–C7 in CI (#59, #61), gate-level C8 (#50), final C8 (#62);
