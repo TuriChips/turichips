@@ -9,12 +9,21 @@ When the task is done the worktree is removed, unless it holds uncommitted or un
 import os
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 
 HOME = Path.home()
 REPOS = Path(os.environ.get("TURICHIPS_REPOS", HOME / "repos"))
 TASKS = Path(os.environ.get("TURICHIPS_TASKS", HOME / "tasks"))
+_locks: dict[str, threading.Lock] = {}
+_locks_guard = threading.Lock()
+
+
+def _lock(name: str) -> threading.Lock:
+    """Task turns run git in worker threads; two tasks on the same repo must not clone or add worktrees at once."""
+    with _locks_guard:
+        return _locks.setdefault(name, threading.Lock())
 
 
 def _git(*args, cwd):
@@ -47,6 +56,11 @@ def default_branch(repo: Path) -> str:
 
 def ensure(t: dict) -> tuple[Path, str]:
     """(worktree path, branch description) for a GitHub-backed task. Blocking: call in a thread."""
+    with _lock(t["repo"]):
+        return _ensure(t)
+
+
+def _ensure(t: dict) -> tuple[Path, str]:
     repo = clone(t["repo"])
     wt = path_for(t)
     if t["role"] == "review":
@@ -81,6 +95,11 @@ def _add(repo, *args):
 
 def remove(t: dict) -> str:
     """Remove a finished task's worktree if nothing would be lost. Returns what happened."""
+    with _lock(t["repo"]):
+        return _remove(t)
+
+
+def _remove(t: dict) -> str:
     wt = path_for(t)
     if not wt.exists():
         return "none"
