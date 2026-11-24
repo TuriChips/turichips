@@ -140,6 +140,14 @@ def snapshot() -> dict | None:
 
 
 # ---------- Board sync ----------
+def _same_besides_ci(old_fp, new_fp) -> bool:
+    """PR fingerprints are [ci, conflict, comments, reviews, labels]: True if only ci/conflict differ."""
+    try:
+        return json.loads(old_fp)[2:] == json.loads(new_fp)[2:]
+    except (TypeError, ValueError):
+        return False
+
+
 def sync(found: dict) -> bool:
     """Apply a snapshot to the board. Returns True if any task became ready."""
     became_ready = False
@@ -158,7 +166,14 @@ def sync(found: dict) -> bool:
         upd = {k: f[k] for k in ("kind", "title", "fp", "info") if t.get(k) != f[k]}
         if upd.get("kind"):
             upd["priority"] = prio
-        if t["status"] == "done":        # reopened, or a review asked for again
+        if (upd.get("kind") == "pr-followup" and t["status"] == "ready" and t["kind"] in ("fix-ci", "conflict")
+                and _same_besides_ci(t["fp"], f["fp"])):
+            # The CI failure or conflict went away before the author got to it (e.g. CI re-run) and nothing else
+            # changed: nothing to do. Back to waiting; a new comment, review or red run wakes it as usual.
+            upd.update(status="waiting", done_fp=f["fp"])
+            log.append("github", "task-settled", f"{TASK_KINDS[t['kind']]['label']}: {f['title']} resolved itself",
+                       repo=f["repo"], ref=f["ref"], actor=f["owner"])
+        elif t["status"] == "done":        # reopened, or a review asked for again
             upd.update(status="ready", next_at=0, settle=0)
             became_ready = True
         elif t["settle"]:                # first look after a turn: what the agent did itself is not news
