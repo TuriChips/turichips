@@ -10,9 +10,13 @@ const api = async (path, opts) => {
 const person = (id) => S.meta.agents[id] ? { id, ...S.meta.agents[id] }
   : (S.meta.system && id === S.meta.system.id) ? S.meta.system : S.meta.me;
 const escape = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-const md = (s) => (window.marked && window.DOMPurify)
-  ? DOMPurify.sanitize(marked.parse(s, { breaks: true, gfm: true }))
-  : escape(s).replace(/\n/g, "<br>");
+const mdCache = new Map();   // message text -> sanitized HTML; markdown + DOMPurify is the slow part of a render
+const md = (s) => {
+  if (!(window.marked && window.DOMPurify)) return escape(s).replace(/\n/g, "<br>");
+  let h = mdCache.get(s);
+  if (h === undefined) { h = DOMPurify.sanitize(marked.parse(s, { breaks: true, gfm: true })); mdCache.set(s, h); }
+  return h;
+};
 const time = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const day = (ts) => new Date(ts * 1000).toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
 const label = (ch) => ch.startsWith("dm-") ? S.meta.agents[ch.slice(3)].name : `# ${ch}`;
@@ -175,10 +179,31 @@ async function openChannel(id) {
   $("input").placeholder = `Message ${label(id)}`;
   closeThread();
   renderSidebar();
-  S.cache[id] = await api(`/api/channel/${id}`);
-  renderMain();
-  $("messages").scrollTop = $("messages").scrollHeight;
+  // Show what we have at once (cached, or an empty pane, never the previous channel), then refresh.
+  const el = $("messages");
+  if (S.cache[id]) renderMain();
+  else el.innerHTML = `<div class="empty">Loading…</div>`;
+  el.scrollTop = el.scrollHeight;
   $("input").focus();
+  if (await loadChannel(id) && S.current === id) renderMain();   // stickToBottom keeps you at the bottom
+}
+
+// Fetch a channel into the cache. Messages that arrived by poll while the request was in flight are kept.
+async function loadChannel(id) {
+  let list;
+  try { list = await api(`/api/channel/${id}`); } catch (e) { console.warn(e); return false; }
+  const old = S.cache[id] || [];
+  const seen = new Set(list.map((m) => m.id));
+  const maxId = list.length ? list[list.length - 1].id : 0;
+  for (const m of old) if (m.id > maxId && !seen.has(m.id)) list.push(m);
+  S.cache[id] = list;
+  return true;
+}
+
+// Warm every channel once so the first click on any of them is instant too.
+async function prefetchAll() {
+  const ids = [...S.meta.channels.map((c) => c.id), ...Object.keys(S.meta.agents).map((a) => `dm-${a}`)];
+  for (const id of ids) if (!S.cache[id]) await loadChannel(id);
 }
 
 async function openThread(id) {
@@ -267,5 +292,6 @@ async function main() {
   if (start === "office" || start === "usage") openView(start);
   else await openChannel(S.meta.channels.some((c) => c.id === start) || start.startsWith("dm-") ? start : "general");
   setInterval(poll, 1500);
+  prefetchAll();
 }
 main();
