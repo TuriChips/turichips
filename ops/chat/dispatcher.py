@@ -252,6 +252,8 @@ async def poll():
 
 def dispatch():
     for t in log.ready():
+        if seats.machine_full():
+            break
         if t["owner"] in running or paused():
             continue
         seat = seats.pick(prefer=t["seat"], urgent=TASK_KINDS[t["kind"]]["urgent"])

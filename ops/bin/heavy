@@ -1,0 +1,10 @@
+#!/bin/sh
+# heavy: run one big job at a time on the TuriChips VM (2 vCPU, 8 GB).
+# Usage: heavy <command...>     e.g.  heavy make acceptance    heavy openroad -exit flow.tcl
+# Waits for any other heavy job to finish, then runs at low CPU/IO priority.
+# Wrap: place-and-route, synthesis of a whole CPU, full exerciser/acceptance runs (zexdoc etc.).
+LOCK="${TURICHIPS_HEAVY_LOCK:-/tmp/turichips-heavy.lock}"
+if ! flock -n "$LOCK" true 2>/dev/null; then
+  echo "heavy: another heavy job is running; waiting for it to finish..." >&2
+fi
+exec flock "$LOCK" nice -n 10 ionice -c3 "$@"

@@ -13,10 +13,11 @@ Utilization comes from usage.py (the last rate_limit_event seen for each seat).
 import time
 
 import usage
-from config import AHEAD_OF_PACE, FIVE_HOUR_CEILING, POOL, SEAT_MAX_RUNNING, WEEKLY_BUFFER
+from config import AHEAD_OF_PACE, FIVE_HOUR_CEILING, MACHINE_MAX_RUNNING, POOL, SEAT_MAX_RUNNING, WEEKLY_BUFFER
 
 WEEK = 7 * 86400
 running: dict[str, int] = {s: 0 for s in POOL}
+active = 0                               # turns running on this machine, any seat (chat fallback included)
 
 
 def _window(seat, name, now):
@@ -68,12 +69,21 @@ def pick(prefer: str | None = None, urgent: bool = False) -> str | None:
     return min(ok, key=lambda s: (s["ahead"], s["running"], s["five_hour"]))["seat"]
 
 
+def machine_full() -> bool:
+    """The VM is small: past MACHINE_MAX_RUNNING turns, no new task turns start (chat still does)."""
+    return active >= MACHINE_MAX_RUNNING
+
+
 def acquire(seat):
+    global active
+    active += 1
     if seat in running:
         running[seat] += 1
 
 
 def release(seat):
+    global active
+    active = max(0, active - 1)
     if seat in running and running[seat] > 0:
         running[seat] -= 1
 

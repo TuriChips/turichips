@@ -36,6 +36,8 @@ POOL = ["seat1", "seat2", "seat3"]   # seat0 (Sai's own) may join later
 WEEKLY_BUFFER = 0.08                 # never plan to use the last 8% of a seat's week
 FIVE_HOUR_CEILING = 0.95             # no new launches on a seat past this in its 5-hour window
 SEAT_MAX_RUNNING = 2                 # turns at once per seat (task + chat)
+MACHINE_MAX_RUNNING = 3              # turns at once on the whole VM (2 vCPU, 8 GB): no new task turns past this.
+                                     # Chat with Sai still runs. On 2026-11-24 six turns at once (P&R + zexdoc) froze the VM.
 AHEAD_OF_PACE = 0.10                 # every seat this far ahead of weekly pace: only urgent work goes out
 CHAT_FALLBACK_SEAT = "seat0"         # chat with Sai still works when the whole pool is out
 

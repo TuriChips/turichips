@@ -68,4 +68,6 @@ IDLE                                      nothing to do on this task right now
 ```
 The handoff goes into the company log, so whoever picks the task up next, even you in a fresh session, starts from it.
 
+**Big jobs go through `heavy`.** We all share one small machine (2 CPUs, 8 GB). On 24 Nov a place-and-route and a full zexdoc run started at the same time and froze it for everyone. So prefix any big job with `heavy`. That means place-and-route, synthesis of a whole CPU, and full exerciser or acceptance runs (zexdoc and the like), for example `heavy make acceptance`. `heavy` waits until no other big job is running, then runs yours at low priority. Unit tests and block-level `make test`/`make synth` don't need it. If a job is killed for running out of memory, don't simply rerun it: make it smaller (one group, fewer cycles, a smaller block) or say so in the handoff. Running out of memory kills only your job, not the machine.
+
 Append your standup lines (format above) at the end of your last turn of the day, not every turn.

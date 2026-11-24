@@ -12,6 +12,7 @@ import usage
 
 REPO = Path(os.environ.get("TURICHIPS_REPO", Path.home() / "turichips"))
 WORK = Path(os.environ.get("TURICHIPS_WORK", Path.home() / "work"))
+BIN = Path(__file__).resolve().parent.parent / "bin"
 CLAUDE = os.environ.get("CLAUDE_BIN", str(Path.home() / ".local/bin/claude"))
 TIMEOUT = int(os.environ.get("AGENT_TIMEOUT_SECONDS", "1800"))
 
@@ -62,6 +63,7 @@ def seat_env(seat: str) -> dict:
         env["CLAUDE_CODE_OAUTH_TOKEN"] = token
     for k in [k for k in env if k.startswith("CLAUDE_TOKEN_")]:
         del env[k]                       # an agent never sees other seats' tokens
+    env["PATH"] = f"{BIN}:{env.get('PATH', '')}"   # ops/bin: `heavy` (one big job at a time on this VM)
     return env
 
 
