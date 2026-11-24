@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -24,6 +25,7 @@ HERE = Path(__file__).parent
 MAX_PARALLEL = int(os.environ.get("MAX_PARALLEL_AGENTS", "2"))
 
 app = FastAPI()
+app.add_middleware(GZipMiddleware, minimum_size=1000)   # channel payloads are ~100 KB of text; gzip cuts them ~5x
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 db.init()
 
@@ -82,10 +84,10 @@ def meta():
 
 
 @app.get("/api/channel/{channel}")
-def channel(channel: str):
+def channel(channel: str, limit: int = 100):
     if channel not in CHANNEL_IDS:
         raise HTTPException(404)
-    return db.channel_messages(channel)
+    return db.channel_messages(channel, max(1, min(limit, 300)))
 
 
 @app.get("/api/thread/{mid}")
