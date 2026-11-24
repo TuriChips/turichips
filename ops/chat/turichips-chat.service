@@ -11,6 +11,14 @@ Environment=PATH=/home/turichips/.local/bin:/usr/local/bin:/usr/bin:/bin
 # Localhost only: agents can run commands on this machine, so the app is never exposed publicly.
 ExecStart=/home/turichips/venv/bin/uvicorn app:app --host 127.0.0.1 --port 8600
 Restart=always
+# The VM is 2 vCPU / 8 GB and also runs other services. Agents' jobs (P&R, long simulations) run inside this
+# unit's cgroup: past MemoryHigh they get throttled, past MemoryMax the kernel kills the biggest process here,
+# and OOMPolicy=continue keeps the app (and the other turns) running. CPUWeight keeps ssh and the rest responsive.
+MemoryHigh=5G
+MemoryMax=6G
+OOMPolicy=continue
+CPUWeight=50
+IOWeight=50
 RestartSec=5
 
 [Install]
