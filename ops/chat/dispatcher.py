@@ -369,7 +369,8 @@ def _blocked_reason() -> str:
         return "the VM is running its maximum number of turns"
     if seats.throttled():
         return "every seat is ahead of its weekly pace, so only urgent work (CI, conflicts, reviews) goes out"
-    return "no seat has room (5-hour window or weekly limit)"
+    why = ", ".join(f"{s['seat']}: {s['why']}" for s in map(seats.state, seats.POOL) if s["why"])
+    return f"no seat will take it ({why or 'no reason reported'})"
 
 
 async def supervise():
@@ -379,8 +380,13 @@ async def supervise():
         set_state("working", f"{len(running)} turn(s) running")
         return
     ready = log.tasks(("ready",))
-    if any(t["next_at"] <= now for t in ready):     # ready now, but dispatch() couldn't launch any of it
+    if any(t["next_at"] <= now for t in ready):     # ready now: launch it (dispatch() may not have ticked yet)
         db.kv_set("quiet_since", "0")
+        dispatch()
+        if running:
+            set_state("working", f"{len(running)} turn(s) running")
+            return
+        # dispatch() really couldn't launch any of it: no seat (or no VM slot) would take it
         set_state("throttled", _blocked_reason())
         return
     if ready:                                       # a task continues shortly (continue_gap)
