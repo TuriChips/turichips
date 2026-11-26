@@ -98,18 +98,22 @@ Each one needs a ruling before v1. My recommendation is listed first.
 ### 4.1 Colour clock and line (SPG pp.1, 4, 18; LD s1)
 - OSC = 3.58 MHz colour clock ("CLK"). One colour clock = one pixel in the visible part of the line.
 - A line is **228 colour clocks**: 68 of horizontal blank, then 160 visible (SPG p.1, p.4). The HSync counter "has a total count of 228. Blank is decoded as 68 counts and sync and color burst as 16 counts" (SPG p.18).
-- The HSync counter is a 6-bit polynomial counter (LFSR) stepped once per 4 colour clocks by a two-phase clock H@1/H@2 derived from CLK (LD s1 D4–D3). It counts 57 states per line (57 × 4 = 228). Decodes (Towers' table, [check: LD s1 "COUNTER DECODES"]), as count → event, delayed 4 CLK by latching unless noted:
+- The HSync counter is a 6-bit polynomial counter (LFSR) stepped once per 4 colour clocks by a two-phase clock H@1/H@2 derived from CLK (LD s1 D4–D3). It counts 57 states per line (57 × 4 = 228).
+- **Counter (LD s1 D4–D3, 400-dpi scan read 2026-11-27):** six DIR stages Q1…Q6 shift towards Q6. The new Q1 = NOR(NOR(Q5, Q̄6), AND(Q5, Q̄6)) = **XNOR(Q5, Q6)**, so a reset to 000000 steps to 100000 (Q1…Q6 order). This is a maximal 63-state sequence, which the END decode cuts to 57. Towers' 63-row state table follows exactly this rule (checked by script: XNOR of his 5th and 6th bits reproduces all 62 transitions, and no other tap pair does).
+- **Decodes (LD s1 "COUNTER DECODES"):** each decode row on the drawing carries its state in octal. The octal digits read Q6…Q1, so `12` = Q1…Q6 `010100`. Every label matches Towers' state for the same decode (script, 2026-11-27):
 
-| Count | CLK at start | Decode | Effect |
-|-------|--------------|--------|--------|
-| 4 | 16 | SHS | HSYNC on |
-| 8 | 32 | RHS | HSYNC off |
-| 12 | 48 | RCB | colour burst off |
-| 16 | 64 | RHB | HBLANK off (first visible pixel at CLK 68) |
-| 18 | 72 | LRHB | HBLANK off instead of RHB when the HMOVE latch is set (8 more blank pixels: the "HMOVE comb") |
-| 36 | 144 | CNT | centre: playfield restarts (copy or reflect) |
-| 56 | 224 | SHB | HBLANK on, counter reset to 0, WSYNC released |
-| 111111 | n/a | ERR | illegal state: reset to 0 |
+| Decode | LD label (octal) | Q1…Q6 | Count | CLK at start | Effect |
+|--------|------------------|-------|-------|--------------|--------|
+| SHS | 17 | 111100 | 4 | 16 | HSYNC on |
+| RHS | 73 | 110111 | 8 | 32 | HSYNC off |
+| RCB | 74 | 001111 | 12 | 48 | colour burst off |
+| RHB | 16 | 011100 | 16 | 64 | HBLANK off (first visible pixel at CLK 68) |
+| LRHB | 72 | 010111 | 18 | 72 | HBLANK off instead of RHB when the HMOVE latch is set (8 more blank pixels: the "HMOVE comb") |
+| CNT | 15 | 101100 | 36 | 144 | centre: playfield restarts (copy or reflect) |
+| END (SHB) | 12 | 010100 | 56 | 224 | HBLANK on, counter reset to 0, WSYNC released |
+| ERR | 77 | 111111 | n/a | n/a | illegal state: reset to 0 |
+
+  "Count" is the number of steps from 000000, and "CLK at start" = 4 × count, from the counter reset. - **Delay cells (LD s1 legend, D1–C1):** **D1** = pass gate → inverter → pass gate → inverter: one bit carried through both phases of the two-phase clock, so one counter step (4 CLK). **D2** = the same with a 2-input NOR in place of the first inverter (OR of two decodes, then delayed). **DIR** = a D1 whose second inverter is a NOR with a reset input (the counter stages). **DL** = a set/reset latch with the same two pass gates. The `*` nodes are the dynamic storage nodes. So the "4 CLK later" in the Effect column is structurally right for decodes that go through one D1/D2. Still [check: LD s1 C5–C4]: which of H@1/H@2 gates each box's first pass gate (that fixes 4 vs 2 CLK per box), the phase of H@1/H@2 against CLK, and the route of each decode (some pass through two boxes).
 
   So pixel *x* (0–159) of a line without HMOVE is colour clock 68 + *x* from the SHB-reset origin.
 - **Vertical timing is software's job**: VSYNC D1 and VBLANK D1 (SPG pp.4–5, p.37). The usual frame is 3 + 37 + 192 + 30 = 262 lines (SPG p.1), but the TIA neither counts nor checks lines. The model's frame boundary is the **falling** edge of the VSYNC latch (D4): a captured frame is every line after the VSYNC lines, 259 lines in the MVT reference PNGs. Homer's runner uses this one rule.
@@ -315,7 +319,8 @@ An active transition on PA7 sets the PA7 flag, "even if the pin is being used as
 - [x] RIOT addressing, timer, flags and PA7 (RIOT DS pp.6–10, text layer; Figure 3 timer timing and Figure 4 flags from the page image p.9).
 - [x] LD sheet titles, rev E, and pad numbers in §2.1, read from the 2048-px scans 2026-11-26. [check] at 400 dpi.
 - [ ] **First:** RSYNC → RESΦ0 and whether it realigns Φ0 (§4.2), and the Φ2 write edge vs colour clock (§4.2): SPG p.46 + LD s1/s2. Everything mid-line depends on these.
-- [ ] HSync counter decodes (§4.1) and RSYNC (§6.2): LD s1.
+- [x] HSync counter (§4.1): the feedback is XNOR(Q5, Q6), and the 8 decode labels (octal 17, 73, 74, 16, 72, 15, 12, 77) are SHS/RHS/RCB/RHB/LRHB/CNT/END/ERR at counts 4/8/12/16/18/36/56. Read from the LD s1 400-dpi scan (AtariAge `TIA_1A_400dpi_1.zip`, 14400 × 9818), 2026-11-27, and cross-checked by script against Towers' table: 0 differences.
+- [ ] The 4-CLK decode latch delays and the H@1/H@2 phase (§4.1), and RSYNC (§6.2): LD s1.
 - [ ] Object reset landing, start delays, NUSIZ decodes, RESMP (§6.5): LD s3, s5.
 - [ ] HMOVE counter and comparators (§6.6): LD s1.
 - [ ] Collision gating (§6.7), priority with SCORE/PFP (§6.9): LD s2, s5.
@@ -323,5 +328,6 @@ An active transition on PA7 sets the PA7 flag, "even if the pin is being used as
 - [ ] RDY lead time (§6.3): SPG p.51 page image, LD s1.
 - [ ] TIA chip selects and the board decode (§2.1, §8.1): 2600 console schematic.
 - [x] Timer count and underflow pulse (§7.2): DS p.9 ("417T", Figure 3 items 2, 3, 5 from the page image) and MVT `riot/timer-vblank-spin` (hardware profile, simulated 2026-11-26) agree on underflow at pulse N·D + 1. DS Figure 3 item 4 ("#416") is the outlier. Still open: the ÷1 second wrap and the pulse on which ÷D resumes after a read (R2).
-- [ ] The CO10444 part number; the 1976 MOS 6532 datasheet or the 1982 MOS catalog copy.
+- [x] 1982 MOS Data Catalog (bitsavers), 6532 pp.2-107 to 2-116, compared with the 2/81 datasheet on 2026-11-27: the same text, including Figure 3 ("#416", items 2, 3 and 5) and "(52 × 8) + 1 = 417T". It's a second printing, not an independent source, so §7.2's evidence is unchanged.
+- [ ] The CO10444 part number; the 1976 MOS 6532 printing.
 - [x] MVT licence: MIT © 2026 Andrew O'Neil (LICENSE at 891c079, read 2026-11-26). The in-scope tests use no undocumented opcode in their own source (grep, 2026-11-26). The dasm macros do (D6).
