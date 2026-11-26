@@ -1,0 +1,312 @@
+# Spec: Atari 2600 (TIA + RIOT), Chip #5: draft v0, not normative
+
+Status: **draft.** Nothing here is normative until Sai signs off. Lines marked **[check]** still need a page (or a schematic zone) confirmed in §10. Choices that are ours, not Atari's or MOS's, are marked *Decision*. §3 lists the ones Sai rules on. Written by Igris for turichips#48. After sign-off it moves to `TuriChips/chip-2600` (repo to create), the same way the Z80 spec did.
+
+## 1. Scope and sources
+
+**What we rebuild:** the two custom/peripheral chips of the Atari Video Computer System (1977), at their pins:
+- **TIA**: Television Interface Adaptor, model 1A, NTSC (Atari part CO10444 [check: the part number isn't printed in any source read so far]). Video timing, playfield, five movable objects, collisions, colour/luminance, two audio channels, six input ports, and the CPU clock and RDY.
+- **RIOT**: MOS 6532 RAM-I/O-Timer. 128 × 8 RAM, two 8-bit ports with direction registers, the interval timer, and PA7 edge detection.
+
+And around them, for tests and the demo only:
+- **6507 CPU = the chip-6502 core, reused** (decision D1). The 6507 is a 6502 in a 28-pin package with A0–A12 only and no IRQ, NMI, SO or SYNC pins (SPG p.36, Figure 9: "MICROPROCESSOR 6507 28 PIN", "address bus (13)"). It is a library block, not new design: the Phase 2 pattern (`docs/roadmap.md`) one chip early.
+- **The board**: address decode, a 4 KB cartridge ROM, the data bus with no pull-ups, controllers and console switches (§8). Board behaviour is specified because the acceptance tests depend on it, but it isn't "the chip" and isn't synthesised.
+
+**Primary sources** (read locally, never committed):
+- **SPG**: Steve Wright, *Stella Programmer's Guide*, 12/03/79, reconstructed by Charles Sinnett 6/11/93. 56 pages, with a text layer. Page numbers here are the printed ones (PDF page = printed + 5). Pages 17–51 are the **TIA 1A hardware manual** ("TIA 1A – Television Interface Adaptor (Model 1A)": detailed description, register bit maps, write/read summaries, timing drawings). The Atari datasheet the issue asks for is this section. Pages 12–15 cover the 6532 as wired in the console.
+- **LD**: *TIA-1A Logic Diagram*, Atari, sheets 1–5, chip rev E, hand-drawn. Scanned by Mark De Smet and hosted on AtariAge (`2600/archives/schematics_tia/`: 2048-px and 400-dpi sets). Sheet 1: sync counter, playfield and motion registers. Sheet 2: data and address decode, collision register. Sheet 3: object and missile motion counters (×2). Sheet 4: audio circuits (×2). Sheet 5: colour-lum-priority circuits and the ball motion counter. Cited as "LD s<sheet> <zone>", for example LD s1 D5. This is the gate-level source. SPG's TIA section describes behaviour, but not to the colour clock.
+- **RIOT DS**: *6532 (Memory, I/O, Timer Array)*, Commodore Semiconductor Group (MOS), datasheet 2/81, 10 pages, text layer plus page images. The 1976 MOS printing hasn't been found yet. The 1982 MOS Data Catalog (bitsavers) is a second copy to compare [check].
+
+**Secondary sources**, cross-checks only, named where they're used:
+- **Towers**: Andrew Towers, *Atari 2600 TIA Hardware Notes* v1.0, 6 March 2003. A reading of LD at the gate level: the counter decode tables, HMOVE, and the object start delays. Every number taken from it is marked [check: LD].
+- **MVT**: the `missingno-vcs-tests` suite (§9). Each test's header states one behaviour, and the self-test verdicts were verified on a real console.
+- Emulators (Stella, Gopher2600; both GPL) are not read for behaviour. Rule 9: no copied code.
+
+**The rule when sources disagree.** LD rev E governs the TIA's colour-clock behaviour, RIOT DS governs the 6532, and SPG governs register meanings. A third-party test that disagrees with LD is a finding for Sai, like the Z80's zexdoc flag rows. It is never patched around silently.
+
+**Scope proposals** (rulings in §3):
+- NTSC TIA only. PAL and SECAM TIAs are different parts. SPG p.16 covers only their software side.
+- Video is output as the digital values the TIA computes each colour clock: sync, blank, 3 luminance bits and the 4-bit colour code (§6.9). The analog colour phase shifter, colour burst waveform and DEL pad (LD s5) are not modelled (D4).
+- Audio in scope as the two 4-bit digital levels (D5).
+- No commercial game ROMs, ever (rule 9). The demo is our own program.
+- Electrical timing is out of scope (SPG pp.46–51 ns tables, RIOT DS pp.3–5). We model clocks, not nanoseconds.
+
+## 2. Pins
+
+### 2.1 TIA (top module `tia`)
+Package pads from LD (the pad boxes carry pad numbers), read from the 2048-px scans. **[check]** each against the 400-dpi set before sign-off.
+
+| Port | Dir | Width | Pad | Meaning |
+|------|-----|-------|-----|---------|
+| `clk` | in | 1 | (OSC 11) | Model clock, two edges' worth per OSC cycle (D2, §4.1). The 3.58 MHz OSC is not a port |
+| `rst` | in | 1 | none | *Model pin*: the TIA has no reset pad (LD: none on any sheet). Sets the power-on state of §5 |
+| `phi0` | out | 1 | Φ0 4 | CPU clock = OSC ÷ 3 (SPG p.19 "divide by three counter … output (1.19 MHz) … pad called Φ0") |
+| `phi2` | in | 1 | Φ2 26 | The CPU's Φ2. Writes latch "when the Φ2 clock goes from high to low", reads are valid "while the Φ2 clock is high" (SPG p.18) |
+| `cs` | in | 4 | CS0 24, CS1 23, CS2 22, CS3 21 | Chip selects. Polarities (CS0, CS3 active low?) [check: LD s2 B7 and the SPG pinout drawing]. The board wiring is §8 |
+| `rw` | in | 1 | R/W 25 | 1 = read |
+| `a` | in | 6 | A0–A5 32…27 | Writes decode A0–A5 (45 decodes, LD s2 "WRITE ADDRESS DECODES"). Reads decode A0–A3 (LD s2 RA0–RA3) |
+| `d_in` | in | 8 | D0–D5 14–19, D6 33, D7 34 | Write data |
+| `d_out` | out | 2 | D6, D7 | Read data. Only D6 and D7 have tri-state drivers (LD s2 C7: "TRI-STATE DRIVERS, 2 PLACES") |
+| `d_oe` | out | 2 | none | *Model pin*, one bit per line, 1 = TIA drives that line this half-cycle (§6.1) |
+| `rdy` | out | 1 | RDY 3 | 0 = halt the CPU (WSYNC, §6.3) |
+| `syn` | out | 1 | SYN 2 | Composite sync = HSYNC combined with the VSYNC bit (SPG p.18) |
+| `blk` | out | 1 | BLK 6 | Blank |
+| `lum` | out | 3 | L0 5, L1 8, L2 7 | Luminance code |
+| `col` | out | 4 | (COL 9) | *Model*: the 4-bit colour code the phase shifter would encode (D4) |
+| `aud0`, `aud1` | out | 4 each | (AUD0 13, AUD1 12) | *Model*: each channel's digital level (D5) |
+| `inpt` | in | 6 | I0–I5 40…35 | Input port pins. I0–I3 are "dumped", I4–I5 "latched" (§6.8) |
+
+Not modelled: DEL 10 (colour delay adjust), VCC 20, VSS 1.
+
+### 2.2 RIOT (top module `m6532`), RIOT DS p.1 pin designation and pp.6–10
+| Port | Dir | Width | Meaning |
+|------|-----|-------|---------|
+| `clk` | in | 1 | Model clock, one per Φ2 cycle (same convention as chip-6502) |
+| `res_n` | in | 1 | RES: zeroes "all four I/O registers" (DDRs and output registers), floats the data bus, disables the PA7 interrupt and sets the negative edge (RIOT DS p.6, p.10). Timer and RAM are not named, so they are **not reset** (*Decision*, the 6502's convention; C-tests set them) |
+| `cs1`, `cs2_n` | in | 1 each | Selected when CS1 = 1 and CS2 = 0 (RIOT DS p.10) |
+| `rs_n` | in | 1 | RAM select: 0 = RAM, 1 = I/O and timer |
+| `rw` | in | 1 | 1 = read |
+| `a` | in | 7 | A0–A6 |
+| `d_in` / `d_out` / `d_oe` | in / out / out | 8 / 8 / 1 | Data bus, split as for chip-6502 |
+| `pa_in`, `pa_out`, `pa_ddr` | in / out / out | 8 each | Port A. Pins with DDR = 1 drive `pa_out`. The testbench resolves pin levels (§7.3) |
+| `pb_in`, `pb_out`, `pb_ddr` | in / out / out | 8 each | Port B |
+| `irq_n` | out | 1 | Open drain in the part. Not connected in the console (the 6507 has no IRQ pin) but specified and tested |
+
+### 2.3 System (top module `a2600`, testbench-facing, not synthesised as "the chip")
+`clk` (as TIA), `rst`, the cartridge port (`cart_a[11:0]`, `cart_d[7:0]`; ROM content loaded by the testbench), `swcha_in[7:0]` (joysticks, idle = 1), `swchb_in[7:0]` (console switches), `inpt[5:0]`, the TIA video and audio outputs, and debug taps of the CPU bus (`a[12:0]`, `d`, `rw`) for C-tests.
+
+## 3. Decisions for Sai
+
+Each one needs a ruling before v1. My recommendation is listed first.
+
+| # | Question | Options (recommended first) | Governs |
+|---|----------|-----------------------------|---------|
+| D1 | What "the chip" is | **(a)** TIA + RIOT are the chip and get synthesis rows. The 6507 is chip-6502's core, pinned by commit (main `5c06fdc` today; chip-6502 has no tags yet), with A13–A15 unconnected, `irq_n`/`nmi_n`/`so_n` tied to 1 and `sync` unused. (b) Also count the 6507 as new work | §1, synthesis |
+| D2 | Model clock resolution | **(a)** One model clock per **half** OSC period (456 per line). LD uses CLK and its inverse: MOTCK is "an inverted (out of phase) CLK" (Towers, [check: LD s1 C7]). Without half-periods, sub-colour-clock order can't be specified. This is the Z80's half-T lesson. (b) One per OSC period, if the LD reading shows that no observable signal changes on the falling edge | §4 |
+| D3 | How the reused core is clocked | **(a)** Add a clock-enable `ce` to a library copy of `m6502` (`ce` = 1 for one model clock per CPU cycle). Rerun chip-6502's full test suite on the copy with `ce` tied to 1, per the block-library rule that a changed block re-runs every user's tests. (b) Feed the unmodified core a derived clock (a divided clock in the RTL; poorer for synthesis and timing) | §4.2 |
+| D4 | Video output | **(a)** Digital `syn`, `blk`, `lum[2:0]`, `col[3:0]` per colour clock. The frame dump is a 160-wide image of 7-bit codes, written as PNG through one fixed NTSC palette (testbench only, not compared). (b) Also model the colour-phase delay line | §2.1, §6.9 |
+| D5 | Audio | **(a)** In scope. `audN` = AUDVN when the channel's output bit is 1, else 0, sampled at the audio clock. Checked by directed tests and Beru's model, since the acceptance suite has no audio tests. The demo also writes a WAV. (b) Out of scope: AUDxx registers latch and do nothing | §6.10 |
+| D6 | Undocumented opcodes in the test ROMs. dasm's `macro.h` v1.11, which every MVT ROM includes, emits **LXA #0** (`$AB`) in `CLEAN_START` and **NOP zp** (`$04`) in `SLEEP n` for odd n, unless `NO_ILLEGAL_OPCODES` is defined. chip-6502 doesn't implement either | **(a)** Add to the core copy exactly `$04` (3 cycles: opcode, operand, read of the zero-page address, no register or flag change) and `$AB` with operand `$00` (A = X = 0, N = 0, Z = 1; other operands unspecified). Then the ROMs run as built and verified on hardware. Before ruling, scan the assembled binaries for any other undocumented opcode (Homer). (b) Assemble with `-DNO_ILLEGAL_OPCODES`. `bit VSYNC` then changes N, V and Z, and init takes 2 more cycles, so every test must be shown to be insensitive to that. (c) Drop the affected tests | §9, core copy |
+| D7 | Power-on state | **(a)** `rst` puts every TIA latch and counter in one listed state (§5). Beru's random runs also start from random OSC÷3 and H-phase alignments and random object counters, so that no acceptance result depends on one alignment. The hardware has no reset, and its phases at power-on are arbitrary | §5 |
+| D8 | Which TIA | **(a)** LD rev E as drawn. Known revision differences (late-HMOVE behaviour varies between TIA revisions, per Stella issue #246) are out of scope. An MVT test that needs another revision's behaviour is a finding for Sai, not a design change | §1, §6 |
+| D9 | Cartridge | **(a)** 4 KB (and 2 KB mirrored) ROM, no bank switching. MVT `cartridge/` (46 tests of mappers, DPC, Supercharger) is out of scope | §8, §9 |
+
+## 4. Clocks and timing
+
+### 4.1 Colour clock and line (SPG pp.1, 4, 18; LD s1)
+- OSC = 3.58 MHz colour clock ("CLK"). One colour clock = one pixel in the visible part of the line.
+- A line is **228 colour clocks**: 68 of horizontal blank, then 160 visible (SPG p.1, p.4). The HSync counter "has a total count of 228. Blank is decoded as 68 counts and sync and color burst as 16 counts" (SPG p.18).
+- The HSync counter is a 6-bit polynomial counter (LFSR) stepped once per 4 colour clocks by a two-phase clock H@1/H@2 derived from CLK (LD s1 D4–D3). It counts 57 states per line (57 × 4 = 228). Decodes (Towers' table, [check: LD s1 "COUNTER DECODES"]), as count → event, delayed 4 CLK by latching unless noted:
+
+| Count | CLK at start | Decode | Effect |
+|-------|--------------|--------|--------|
+| 4 | 16 | SHS | HSYNC on |
+| 8 | 32 | RHS | HSYNC off |
+| 12 | 48 | RCB | colour burst off |
+| 16 | 64 | RHB | HBLANK off (first visible pixel at CLK 68) |
+| 18 | 72 | LRHB | HBLANK off instead of RHB when the HMOVE latch is set (8 more blank pixels: the "HMOVE comb") |
+| 36 | 144 | CNT | centre: playfield restarts (copy or reflect) |
+| 56 | 224 | SHB | HBLANK on, counter reset to 0, WSYNC released |
+| 111111 | n/a | ERR | illegal state: reset to 0 |
+
+  So pixel *x* (0–159) of a line without HMOVE is colour clock 68 + *x* from the SHB-reset origin.
+- **Vertical timing is software's job**: VSYNC D1 and VBLANK D1 (SPG pp.4–5, p.37). The usual frame is 3 + 37 + 192 + 30 = 262 lines (SPG p.1), but the TIA neither counts nor checks lines. The model's frame boundary is the rising edge of the VSYNC latch (D4).
+
+### 4.2 CPU clock and the bus (SPG pp.4, 18–19)
+- Φ0 = OSC ÷ 3, so one CPU cycle = 3 colour clocks and a line is 76 CPU cycles (SPG p.4).
+- Per D3, the 6502 core advances one cycle per Φ0 period. *Decision* (proposed): the CPU's Φ2 equals Φ0 with no delay (on the real board the 6507 makes Φ2 from Φ0 with a few ns of lag, which we don't model).
+- TIA write: data and address are latched "when the Φ2 clock goes from high to low" (SPG p.18). The colour clock and half on which that edge falls within the 3-clock CPU cycle **[check: SPG p.46 "TIA Φ0..Φ2 and LUM timing" (hand-drawn page image) and LD s1 D7 "DIVIDE BY THREE", s2 B6 Φ2 path]**. Every RESPx, HMOVE and mid-line write result in §6 depends on this one alignment, so it is the first thing to settle.
+- The divide-by-3 counter's phase relative to the H@1/H@2 clock is free-running. LD s1 shows a RESΦ0 path from RSYNC (SPG p.50 drawing "RSYNC – RESΦ0 – HΦ1 – HΦ2 – SHB – Φ2 – Φ0"): **[check]** whether RSYNC also realigns Φ0.
+
+## 5. Reset and power-on (D7)
+- TIA: no reset pad. With `rst` = 1 the model sets (*Decision*, proposed): every write register and latch to 0, HSync counter = 0 with H-phase = H@1 start, divide-by-3 phase = 0, object position counters = 0, the HMOVE "more motion" latches clear, collision latches clear, WSYNC/RDY released, audio poly counters to a stated non-illegal state [check: LD s4, which state the hardware can't lock in].
+- RIOT: per §2.2 (`res_n`).
+- 6507: chip-6502 §5 (reset vector at FFFC/FFFD, with A12–A0 mirroring it into the cartridge).
+- System: `rst` holds TIA `rst` and RIOT `res_n` and the CPU's `res_n` together, for at least 2 CPU cycles (chip-6502's minimum [check]).
+
+## 6. TIA behaviour
+
+### 6.1 Registers (SPG pp.3, 18, 37–45)
+- **Writes**: 45 addresses `$00`–`$2C`, decoded on A0–A5 (SPG p.44, LD s2). Writes to `$2D`–`$3F` do nothing. "There are no registers that are both read and write" (SPG p.18). Strobes act on the write and ignore the data.
+- **Reads**: 14 addresses on A0–A3 (SPG p.45). The TIA drives only D7 and D6. Which of these two lines it drives for each read address (CXBLPF's "unused" D6, and INPTx's D6) is **[check: LD s2 C6 "TRI STATE SELECTORS" against MVT `cpu/partial-drive`]**. Lines the TIA doesn't drive keep the board's bus residue (§8). Read addresses with low nibble `$E`/`$F` drive nothing.
+
+**Write map** (SPG p.44 for addresses, pp.37–43 for bits. The summary table on p.44 of the reconstruction has misplaced bit columns for AUDC0/1 and AUDF0/1; the detail pages govern: AUDC = D3–D0, AUDF = D4–D0, §10):
+
+| Addr | Name | Bits | Addr | Name | Bits |
+|------|------|------|------|------|------|
+| 00 | VSYNC | D1 | 16 | AUDC1 | D3–D0 |
+| 01 | VBLANK | D7, D6, D1 | 17 | AUDF0 | D4–D0 |
+| 02 | WSYNC | strobe | 18 | AUDF1 | D4–D0 |
+| 03 | RSYNC | strobe | 19 | AUDV0 | D3–D0 |
+| 04 | NUSIZ0 | D5, D4, D2–D0 | 1A | AUDV1 | D3–D0 |
+| 05 | NUSIZ1 | D5, D4, D2–D0 | 1B | GRP0 | D7–D0 |
+| 06 | COLUP0 | D7–D1 | 1C | GRP1 | D7–D0 |
+| 07 | COLUP1 | D7–D1 | 1D | ENAM0 | D1 |
+| 08 | COLUPF | D7–D1 | 1E | ENAM1 | D1 |
+| 09 | COLUBK | D7–D1 | 1F | ENABL | D1 |
+| 0A | CTRLPF | D5, D4, D2–D0 | 20 | HMP0 | D7–D4 |
+| 0B | REFP0 | D3 | 21 | HMP1 | D7–D4 |
+| 0C | REFP1 | D3 | 22 | HMM0 | D7–D4 |
+| 0D | PF0 | D7–D4 | 23 | HMM1 | D7–D4 |
+| 0E | PF1 | D7–D0 | 24 | HMBL | D7–D4 |
+| 0F | PF2 | D7–D0 | 25 | VDELP0 | D0 |
+| 10 | RESP0 | strobe | 26 | VDELP1 | D0 |
+| 11 | RESP1 | strobe | 27 | VDELBL | D0 |
+| 12 | RESM0 | strobe | 28 | RESMP0 | D1 |
+| 13 | RESM1 | strobe | 29 | RESMP1 | D1 |
+| 14 | RESBL | strobe | 2A | HMOVE | strobe |
+| 15 | AUDC0 | D3–D0 | 2B | HMCLR | strobe |
+| | | | 2C | CXCLR | strobe |
+
+**Read map** (SPG p.45): `0` CXM0P (D7 M0·P1, D6 M0·P0), `1` CXM1P (M1·P0, M1·P1), `2` CXP0FB (P0·PF, P0·BL), `3` CXP1FB (P1·PF, P1·BL), `4` CXM0FB (M0·PF, M0·BL), `5` CXM1FB (M1·PF, M1·BL), `6` CXBLPF (D7 BL·PF), `7` CXPPMM (P0·P1, M0·M1), `8`–`D` INPT0–INPT5 (D7).
+
+### 6.2 Sync and blank (SPG pp.4–5, 18, 37)
+- VSYNC D1 = 1 turns vertical sync on. `syn` = HSYNC combined with the VSYNC latch, polarity and combining gate **[check: LD s1 C8]**.
+- VBLANK D1 = 1 forces blank. D6 enables the I4/I5 latches, D7 dumps I0–I3 (§6.8). "Disable latches (D6 = 0) also resets latches to logic true" (SPG p.37).
+- `blk` = HBLANK (including the HMOVE extension) or VBLANK D1. While `blk` = 1, `lum` and `col` = 0 (SPG p.51 "LUM LINES = 000 = BLANK").
+- RSYNC "resets the horizontal sync counter to define the beginning of horizontal blank time, and is used in chip testing" (SPG p.37). Exact timing (Towers: a full H@1–H@2 cycle after the strobe, the counter resets and HBLANK turns on) **[check: LD s1, SPG p.50/51 drawings]**. MVT `tia-timing/rsync` tests it, and `CLEAN_START` strobes RSYNC twice through the `$01xx` mirror (MVT README).
+
+### 6.3 WSYNC and RDY (SPG pp.4, 19, 37; Figure 2 p.30)
+- A write to WSYNC sets a latch that drives `rdy` = 0. The latch "is automatically reset to zero by the leading edge of the next horizontal blank timing signal" (SPG p.19).
+- The 6502 core already stops only on read cycles with RDY = 0 (chip-6502 spec §2), so a `STA WSYNC` completes and the CPU halts on its next read. MVT `cpu/rmw-wsync` checks this.
+- The exact colour clock of RDY release relative to SHB (SPG p.51 handwritten note: "READY LEAD TIME (if reset, ready will be set 5 osc cycles prior to horizontal blank time)") **[check: page image p.51 at higher resolution and LD s1 C8]**.
+
+### 6.4 Playfield (SPG pp.5–6, 19–20, 38; LD s1 "PLAYFIELD REGISTERS")
+- 20 bits: PF0 D4–D7, then PF1 D7–D0, then PF2 D0–D7, left to right. Each bit is 4 colour clocks wide. The left half of the line is drawn from those 20 bits, and the right half repeats them, or reverses them when CTRLPF D0 (REF) = 1 (SPG p.38 diagram).
+- The serial output starts at RHB and restarts at CNT (§4.1). A PF register written while it is being scanned shows "part of the new value" on that line (SPG p.20). The exact colour clock from which a write is visible **[check: LD s1]**. MVT `tia-timing/midline-pf` is the screenshot test.
+- CTRLPF D1 (SCORE): the playfield takes COLUP0 on the left half and COLUP1 on the right (SPG p.26, p.38). D2 (PFP): playfield and ball above players and missiles (SPG p.26).
+
+### 6.5 Movable objects: position counters (SPG pp.8, 20–21, 39; LD s3, s5)
+- Each of P0, P1, M0, M1 and BL has a 6-bit polynomial position counter with a period of 40 counts (160 colour clocks), clocked only in the visible part of the line by MOTCK (plus HMOVE's extra pulses, §6.6). So an object keeps its column from line to line (SPG p.20).
+- RESxx strobes reset that counter "at any time" (SPG p.20). During horizontal blank the object lands at the left edge (SPG p.8, p.20). Where it lands for a visible-region strobe, relative to the write's colour clock, is the main [check] of this chip. Towers: players appear 5 pixels right of the reset pixel. Missiles and the ball differ by 1 because the player START latch adds 1 CLK. A RESBL strobe starts drawing the ball at once, while RESPx/RESMx start no copy until the counter wraps. MVT `collision/reset-phase` says the landing depends on the strobe's colour-clock phase, not just on its CPU cycle. **[check: LD s3, s5]**
+- NUSIZ D2–D0 (SPG p.39): copies and size, the same decodes for player and missile (SPG p.20):
+
+| D2–D0 | Player | Copies at +0 and |
+|-------|--------|------------------|
+| 000 | one copy | none |
+| 001 | two, close | +16 |
+| 010 | two, medium | +32 |
+| 011 | three, close | +16, +32 |
+| 100 | two, wide | +64 |
+| 101 | double size | none |
+| 110 | three, medium | +32, +64 |
+| 111 | quad size | none |
+
+  Offsets from Towers' decodes (counts 3, 7, 15 → 16, 32, 64 colour clocks) **[check: LD s3 "PLAYER NUMBER SELECT"]**. Missiles draw one copy in modes 101 and 111 (Towers, [check]).
+- Players: GRPx is scanned D7 first, or D0 first with REFPx D3 = 1 (SPG p.41), 1, 2 or 4 colour clocks per bit (SPG p.22). Missile width NUSIZ D5–D4 and ball width CTRLPF D5–D4: 1, 2, 4 or 8 colour clocks (SPG pp.38–39).
+- Enables: ENAMx D1, ENABL D1 (SPG p.41).
+- RESMPx D1 = 1: the missile is disabled and its position is locked to "the center of its corresponding player" until D1 = 0 (SPG p.21, p.39). Mechanism: the missile counter is reset while the player's scan counter is at 4 during the main copy (Towers, [check: LD s3 "MISSILE TO PLAYER RESET"]).
+- Vertical delay (SPG p.23–24): each player has a "new" and an "old" graphics register. Writing GRP0 copies P1's new to P1's old, writing GRP1 copies P0's new to P0's old **and** ENABL new to ENABL old. VDELPx/VDELBL D0 selects old.
+
+### 6.6 HMOVE (SPG pp.8–9, 21, 40; LD s1 "MOTION REGISTERS")
+- HMxx D7–D4 is a two's-complement motion, +7 (left) to −8 (right) (SPG p.40). HMCLR clears all five (SPG p.40).
+- An HMOVE strobe applies all five at once. Mechanism (Towers, [check: LD s1]): it sets the HMOVE latch, which makes blank end at LRHB (+8 pixels, the comb) and is cleared at the line wrap. A 4-bit ripple counter runs 15 → 0 once every 4 colour clocks, and each object takes one extra clock pulse per step until its comparator matches (the D7 bit is compared inverted). Net motion = (HM ^ 8) − 8 pixels left.
+- SPG's constraints are programming advice, not limits of the model: "must immediately follow a WSYNC" and "should not be modified for at least 24 machine cycles after an HMOVE" (SPG p.9, p.21, p.40). The model computes whatever LD computes for every strobe time and every rewrite. That is how the late-HMOVE and stuck-motion results in MVT `tia-timing/hmove-*` (19 tests) arise.
+
+### 6.7 Collisions (SPG pp.10, 24, 41, 45; LD s2)
+15 latches, one per object pair (6 objects), set when both serial outputs are 1 on the same colour clock (SPG p.24). This includes clocks inside blank? **[check: LD s2 "COLLISION LATCHES" gating; MVT `collision/blank-gating`]**. CXCLR clears all 15.
+
+### 6.8 Input ports (SPG pp.11, 25, 37; LD s2 "INPUT PORTS")
+- I0–I3: INPTn D7 = pin level, forced to 0 while VBLANK D7 = 1 (dump to ground). The analog RC charge time is the testbench's job: a paddle is a pin that goes to 1 some number of lines after the dump is released.
+- I4–I5: with VBLANK D6 = 0, INPTn D7 = pin level. With D6 = 1, a latch that a 0 on the pin clears, and that stays 0 until D6 = 0 (SPG p.25). Writing D6 = 0 resets the latches to 1 (SPG p.37).
+
+### 6.9 Priority and colour (SPG pp.5, 9, 26–27, 42; LD s5)
+- Colour registers: D7–D4 = colour (hue) code, D3–D1 = luminance (SPG p.42). P0 and M0 take COLUP0, P1 and M1 take COLUP1, PF and BL take COLUPF, background takes COLUBK (SPG p.5).
+- Priority (SPG p.26): normally P0/M0 > P1/M1 > PF/BL > BK. With PFP: PF/BL > P0/M0 > P1/M1 > BK. SCORE changes PF's colour as in §6.4. How SCORE and PFP combine for the ball **[check: LD s5 "PRIORITY ENCODER"; MVT `tia-render/score-mode`, `pf-priority`]**.
+- Outputs per colour clock (D4): `lum` = D3–D1 and `col` = D7–D4 of the selected register, both 0 while `blk` = 1. Colour code 0 = no colour, 1 = gold (same phase as burst), 2–15 around the wheel (SPG p.27).
+
+### 6.10 Audio (D5; SPG pp.10, 27–28, 42–43; LD s4)
+- Each channel: AUDF D4–D0 divides an approximately 30 kHz clock by 1–32 (SPG p.42). AUDC D3–D0 selects the noise/tone mode of a 9-bit shift counter (SPG p.43 table, 16 modes). AUDV D3–D0 is the volume (SPG p.43).
+- The 30 kHz clock is the audio clock AΦ1/AΦ2 decoded from the HSync counter, twice per line (LD s1 "AUDIO CLOCKS (Φ1–Φ2)"). Its exact counts **[check]**.
+- The poly counters' taps and the mode decode come from LD s4. SPG's table names the modes ("4 bit poly", "div 31", …) but not the bits. **[check: LD s4 at 400 dpi]**.
+- Output (D5 (a)): `audN` = AUDVN if the shift counter's output bit is 1, else 0.
+
+## 7. RIOT behaviour (RIOT DS; SPG pp.12–15)
+
+### 7.1 Addressing (RIOT DS p.10, Table 1)
+RS = 0: RAM, A0–A6 select the byte. RS = 1:
+
+| Op | A4 | A3 | A2 | A1 | A0 | Register | Console address (SPG p.15) |
+|----|----|----|----|----|----|----------|---------|
+| R/W | – | – | 0 | 0 | 0 | ORA / port A | `$280` SWCHA |
+| R/W | – | – | 0 | 0 | 1 | DDRA | `$281` SWACNT |
+| R/W | – | – | 0 | 1 | 0 | ORB / port B | `$282` SWCHB |
+| R/W | – | – | 0 | 1 | 1 | DDRB | `$283` SWBCNT |
+| W | 1 | IRQ en | 1 | div | div | timer, ÷1/8/64/1024 by A1A0 | `$294`–`$297` (+8 with IRQ enabled) |
+| R | – | IRQ en | 1 | – | 0 | timer | `$284` INTIM |
+| R | – | – | 1 | – | 1 | interrupt flags | `$285` |
+| W | 0 | – | 1 | PA7 IRQ en | edge (0 = negative) | edge detect control | `$284`/`$285` |
+
+### 7.2 Timer (RIOT DS pp.8–9, Figure 3 page image; SPG p.12)
+- Write N to a timer address on Φ2 pulse 0 with divide D. The timer reads N − ⌊k/D⌋ − 1 on pulse k (DS Figure 3: 52, ÷8 → 25 at pulse 213 and 0 at pulse 415). At pulse N·D (416) it underflows to `$FF`, sets the timer flag, and from then on decrements once per Φ2 (DS p.8). SPG p.12 says the same: it holds 0 for one interval, then goes to `FF` and decrements once each clock.
+- Discrepancy, **[check]**: DS Figure 3 item 5 reads `10101100` (= `$AC`) at pulse 500. The once-per-pulse rule from `$FF` at pulse 416 gives `$AB`. MVT `riot/timer-underflow-read` and `timer-vblank-spin` were verified on hardware, so they are the arbiters here.
+- Flags (DS p.9, Figure 4): D7 = timer flag, D6 = PA7 flag, D5–D0 read 0. The timer flag clears when the timer is written or read, "however, the reading of the timer at the same time the interrupt occurs will not reset the interrupt flag" (DS p.9). Reading the flag register clears the PA7 flag only (DS p.9).
+- `irq_n` = 0 while (timer flag and the timer IRQ enable) or (PA7 flag and the PA7 enable). The timer IRQ enable is A3 of the last timer write (DS p.8). Whether a timer read's A3 also changes it **[check: DS p.8 "During a Read or Write operation address line A3 controls the interrupt capability"]**.
+
+### 7.3 Ports (RIOT DS p.6–7)
+- DDR bit 1 = output. A port A read returns the **pin** levels: output pins read what is on the pin, input pins read the outside world. A port B read returns ORB for output bits (DS p.7: "allow the microprocessor to read the Output Register instead of reading the peripheral pin").
+- Writing ORA/ORB stores all 8 bits whatever the direction (DS p.7). MVT `riot/io-output` tests this.
+- In the console, Port A = joysticks (or paddle triggers or keyboard rows), Port B = console switches (SPG pp.13–15). Port B is "hardwired" as input by the board, not by the chip: SWBCNT is still a writable DDR [check: MVT `riot/io-ports`].
+
+### 7.4 PA7 edge (RIOT DS p.7, p.10)
+An active transition on PA7 sets the PA7 flag, "even if the pin is being used as … output", and also when the interrupt is disabled (DS p.7). Reset selects the negative edge with the interrupt disabled (DS p.10). Changing polarity may itself set the flag (DS p.7: "It may also be set by changing the polarity of the active interrupt"). MVT `riot/pa7-polarity` says this does **not** happen on the tested console. **[Sai: hardware result vs datasheet wording; I propose following the hardware, as the datasheet says "may"]**.
+
+## 8. System (board) and behaviours to test
+
+### 8.1 Board (from MVT `riot/io-mirrors` and `ram-mirrors` headers, **[check: the 2600 console schematic]**)
+- A12 = 1: cartridge, A0–A11. A 2 KB image is mirrored.
+- A12 = 0, A7 = 0: TIA (writes A0–A5, reads A0–A3).
+- A12 = 0, A7 = 1, A9 = 0: RIOT RAM (A0–A6). A12 = 0, A7 = 1, A9 = 1: RIOT I/O and timer.
+- So TIA CS wiring: CS0 = A12 (active low) and CS3 = A7 (active low), CS1/CS2 tied, **[check]**. RIOT: CS1 = A7, CS2_n = A12, RS_n = A9.
+- **Bus residue** (*Decision*, proposed): the data bus has no pull-ups, so the model's bus holds the last value any chip or the CPU drove, per bit. A read cycle takes the TIA-driven bits from the TIA and every other bit from the residue (MVT `cpu/floating-bus`, `open-bus`, `partial-drive`).
+- Idle inputs: `swcha_in` = `$FF`, `inpt[5:0]` = 1, `swchb_in` = `$0B` (colour, no switch pressed, both difficulties B [check: SPG p.13 bits]).
+
+### 8.2 Behaviours to test (draft, C-tests for Titus, random for Beru)
+- T1 HSync: 228-clock lines, the SHS/RHS/RCB/RHB/CNT/SHB colour clocks, `syn` and `blk` on every clock (§4.1, §6.2).
+- T2 Φ0 = OSC/3 and the Φ2 write edge alignment (§4.2).
+- T3 WSYNC: RDY low from the write to SHB, read-cycle-only halt; RSYNC.
+- T4 Playfield: every bit at 4 clocks, copy and reflect, SCORE, PFP, mid-line writes.
+- T5 Each object: RESxx in blank and at every visible colour-clock phase, NUSIZ copies and sizes, REFP, VDEL old/new copying, RESMP lock.
+- T6 HMOVE: every HM value at the standard strobe, every strobe cycle across the line, rewrites during the 64-clock window, HMCLR.
+- T7 Collisions: all 15 pairs, CXCLR, gating in blank.
+- T8 Inputs: dump, latch, latch reset.
+- T9 Priority and colour mux on every combination of the 6 serial outputs × PFP × SCORE.
+- T10 Audio: all 16 AUDC modes × AUDF 0/1/31 against Beru's model for 2 full poly periods.
+- R1 RIOT RAM, ports, DDRs. R2 timer: all 4 divides, N = 0, 1, 255, reads around underflow, flag clearing. R3 PA7 edges and IRQ.
+- S1 Board decode and mirrors, bus residue.
+- **C8-equivalent** (Beru): random 6507 programs (documented opcodes plus D6's two) writing random TIA/RIOT registers at random cycles, compared every colour clock on every output port against a reference model written from LD and RIOT DS, starting from random power-on phases (D7).
+
+## 9. Acceptance tests
+
+1. **missingno-vcs-tests** (MVT), github.com/ajoneil/missingno-vcs-tests, commit `891c079976a2f68033ca4af2fe2fd85aaf1906c9` (2026-08-09).
+   - **Licence checked** (2026-11-26, `LICENSE` at that commit): **MIT, "Copyright (c) 2026 Andrew O'Neil"**. Fetched at test time, pinned by commit and sha256, never committed (rule 9), as for zexdoc.
+   - **What it is**: one behaviour per ROM, each specified in its source header. "Verified on real hardware (an Australian PAL all-black unit, July 2026)". **Self-tests** write `$A5` (pass) or `$5A` (fail) to RAM `$80`, with the failing sub-check and its values at `$81`–`$83`. **Screenshot tests** compare one frame pixel-exact with `<test>_ntsc.png` (160 × 259, every line after the 3 VSYNC lines).
+   - **In scope: 81 ROMs** (NTSC builds), 54 self-tests and 27 screenshot tests: `harness/` 2 (1 + 1), `cpu/` 7 (7 + 0), `riot/` 11 (11 + 0), `tia-render/` 15 (10 + 5), `tia-timing/` 30 (9 + 21), `collision/` 16 (16 + 0). All are 4 KB images at `$F000`.
+   - **Out of scope**: `cartridge/` (46 ROMs: bank switching, DPC, Supercharger), per D9.
+   - **Caveats for Sai**:
+     (a) The NTSC reference PNGs are renders by the missingno emulator, aligned to captures from that PAL console. They are not NTSC hardware captures, and the console's TIA revision is unknown (D8). A screenshot mismatch where our design matches LD is a finding, not a failure to fix blindly.
+     (b) Building the ROMs needs **dasm** (GPL-2.0, a build tool, not shipped) and its `vcs.h`/`macro.h` (licence text in those headers **[check]**, Homer). Or use the prebuilt binaries in github.com/ajoneil/missingno (MIT): Homer proposes which, with both hashes recorded, as for zexdoc.
+     (c) D6: the ROMs as built contain `$AB` (LXA #0) and `$04` (NOP zp).
+     (d) A screenshot needs a 7-bit code → RGB inverse map from the reference palette, and a rule for which frame is captured. Homer defines both from the MVT/missingno runner and records them in the runner.
+   - **Pass criterion**: all 54 self-tests reach `$A5` within a frame budget the runner states, and all 27 screenshots match. Runs go through `heavy` (they are full-system runs).
+2. **Cross-check only**: SingleStepTests 65x02 (already used for chip-6502) on the core copy after D3/D6.
+3. **Demo** (Homer): our own 2600 program, no commercial ROM. A title screen with playfield, two players, a moving ball and a tone, dumped as PNG frames (and a WAV if D5 (a)), and used for the website card.
+
+## 10. Datasheet check
+- [x] Line = 228 colour clocks, 68 blank + 160 visible; 3 colour clocks per CPU cycle; 76 cycles per line (SPG pp.1, 4, 18; text layer, read 2026-11-26).
+- [x] Register addresses and bits (SPG pp.37–45, text layer). The reconstruction's write summary p.44 has wrong bit columns for AUDC0/AUDC1/AUDF0/AUDF1 (shows AUDC1 and AUDF0 as 5 bits, AUDC0 and AUDF1 as 4). The detail pages p.42–43 (AUDF D4–D0, AUDC D3–D0) govern [check: compare with the original 1979 page images if found].
+- [x] Read map, D7/D6 only (SPG p.45). Only D6 and D7 have tri-state drivers (LD s2 C7, 2048-px scan).
+- [x] WSYNC/RDY release at the leading edge of horizontal blank (SPG p.19, p.37).
+- [x] RIOT addressing, timer, flags and PA7 (RIOT DS pp.6–10, text layer; Figure 3 timer timing and Figure 4 flags from the page image p.9).
+- [x] LD sheet titles, rev E, and pad numbers in §2.1, read from the 2048-px scans 2026-11-26. [check] at 400 dpi.
+- [ ] Φ2 write edge vs colour clock (§4.2): SPG p.46 + LD s1/s2.
+- [ ] HSync counter decodes (§4.1) and RSYNC (§6.2): LD s1.
+- [ ] Object reset landing, start delays, NUSIZ decodes, RESMP (§6.5): LD s3, s5.
+- [ ] HMOVE counter and comparators (§6.6): LD s1.
+- [ ] Collision gating (§6.7), priority with SCORE/PFP (§6.9): LD s2, s5.
+- [ ] Audio clock and poly counters (§6.10): LD s1, s4.
+- [ ] RDY lead time (§6.3): SPG p.51 page image, LD s1.
+- [ ] TIA chip selects and the board decode (§2.1, §8.1): 2600 console schematic.
+- [ ] Timer value after underflow (§7.2): DS Figure 3 item 5 vs hardware (MVT).
+- [ ] The CO10444 part number; the 1976 MOS 6532 datasheet or the 1982 MOS catalog copy.
+- [x] MVT licence: MIT © 2026 Andrew O'Neil (LICENSE at 891c079, read 2026-11-26). The in-scope tests use no undocumented opcode in their own source (grep, 2026-11-26). The dasm macros do (D6).
