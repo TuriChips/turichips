@@ -61,7 +61,8 @@ Not modelled: DEL 10 (colour delay adjust), VCC 20, VSS 1.
 ### 2.2 RIOT (top module `m6532`), RIOT DS p.1 pin designation and pp.6–10
 | Port | Dir | Width | Meaning |
 |------|-----|-------|---------|
-| `clk` | in | 1 | Model clock, one per Φ2 cycle (same convention as chip-6502) |
+| `clk` | in | 1 | Model clock (D2, half an OSC period). |
+| `ce` | in | 1 | Clock-enable, 1 for one model clock per Φ2 cycle (D3). Tied to the same CPU-cycle strobe as the core's `ce`, **not** gated by `rdy`: the timer and port logic keep running while WSYNC halts the CPU (MVT `riot/timer`: one scanline of TIM1T = 76 decrements through a WSYNC freeze) |
 | `res_n` | in | 1 | RES: zeroes "all four I/O registers" (DDRs and output registers), floats the data bus, disables the PA7 interrupt and sets the negative edge (RIOT DS p.6, p.10). Timer and RAM are not named, so they are **not reset** (*Decision*, the 6502's convention; C-tests set them) |
 | `cs1`, `cs2_n` | in | 1 each | Selected when CS1 = 1 and CS2 = 0 (RIOT DS p.10) |
 | `rs_n` | in | 1 | RAM select: 0 = RAM, 1 = I/O and timer |
@@ -83,12 +84,13 @@ Each one needs a ruling before v1. My recommendation is listed first.
 |---|----------|-----------------------------|---------|
 | D1 | What "the chip" is | **(a)** TIA + RIOT are the chip and get synthesis rows. The 6507 is chip-6502's core, pinned by commit (main `5c06fdc` today; chip-6502 has no tags yet), with A13–A15 unconnected, `irq_n`/`nmi_n`/`so_n` tied to 1 and `sync` unused. (b) Also count the 6507 as new work | §1, synthesis |
 | D2 | Model clock resolution | **(a)** One model clock per **half** OSC period (456 per line). LD uses CLK and its inverse: MOTCK is "an inverted (out of phase) CLK" (Towers, [check: LD s1 C7]). Without half-periods, sub-colour-clock order can't be specified. This is the Z80's half-T lesson. (b) One per OSC period, if the LD reading shows that no observable signal changes on the falling edge | §4 |
-| D3 | How the reused core is clocked | **(a)** Add a clock-enable `ce` to a library copy of `m6502` (`ce` = 1 for one model clock per CPU cycle). Rerun chip-6502's full test suite on the copy with `ce` tied to 1, per the block-library rule that a changed block re-runs every user's tests. (b) Feed the unmodified core a derived clock (a divided clock in the RTL; poorer for synthesis and timing) | §4.2 |
+| D3 | How the reused core is clocked | **(a)** Add a clock-enable `ce` to a library copy of `m6502` (`ce` = 1 for one model clock per CPU cycle). Rerun chip-6502's full test suite on the copy with `ce` tied to 1, per the block-library rule that a changed block re-runs every user's tests. (b) Feed the unmodified core a derived clock (a divided clock in the RTL; poorer for synthesis and timing). **D3b (RIOT):** the same `ce` goes to `m6532` (§2.2), tied to Φ2 and never to RDY. Option (b) would need the same derived clock there | §4.2, §2.2 |
 | D4 | Video output | **(a)** Digital `syn`, `blk`, `lum[2:0]`, `col[3:0]` per colour clock. The frame dump is a 160-wide image of 7-bit codes, written as PNG through one fixed NTSC palette (testbench only, not compared). (b) Also model the colour-phase delay line | §2.1, §6.9 |
 | D5 | Audio | **(a)** In scope. `audN` = AUDVN when the channel's output bit is 1, else 0, sampled at the audio clock. Checked by directed tests and Beru's model, since the acceptance suite has no audio tests. The demo also writes a WAV. (b) Out of scope: AUDxx registers latch and do nothing | §6.10 |
 | D6 | Undocumented opcodes in the test ROMs. dasm's `macro.h` v1.11, which every MVT ROM includes, emits **LXA #0** (`$AB`) in `CLEAN_START` and **NOP zp** (`$04`) in `SLEEP n` for odd n, unless `NO_ILLEGAL_OPCODES` is defined. chip-6502 doesn't implement either | **(a)** Add to the core copy exactly `$04` (3 cycles: opcode, operand, read of the zero-page address, no register or flag change) and `$AB` with operand `$00` (A = X = 0, N = 0, Z = 1; other operands unspecified). Then the ROMs run as built and verified on hardware. Before ruling, scan the assembled binaries for any other undocumented opcode (Homer). (b) Assemble with `-DNO_ILLEGAL_OPCODES`. `bit VSYNC` then changes N, V and Z, and init takes 2 more cycles, so every test must be shown to be insensitive to that. (c) Drop the affected tests | §9, core copy |
-| D7 | Power-on state | **(a)** `rst` puts every TIA latch and counter in one listed state (§5). Beru's random runs also start from random OSC÷3 and H-phase alignments and random object counters, so that no acceptance result depends on one alignment. The hardware has no reset, and its phases at power-on are arbitrary | §5 |
+| D7 | Power-on state | **(a)** `rst` puts every TIA latch and counter in one listed state (§5). Beru's random runs also start from random OSC÷3 and H-phase alignments, random object counters, and a random RIOT timer value and prescaler phase (§2.2 leaves them unreset), so that no acceptance result depends on one alignment. The hardware has no reset, and its phases at power-on are arbitrary | §5 |
 | D8 | Which TIA | **(a)** LD rev E as drawn. Known revision differences (late-HMOVE behaviour varies between TIA revisions, per Stella issue #246) are out of scope. An MVT test that needs another revision's behaviour is a finding for Sai, not a design change | §1, §6 |
+| D10 | PAL arbiter. MVT's self-test verdicts were verified on an Australian **PAL** console (July 2026), but we model the NTSC TIA (§1). The self-tests are used as arbiters on the assumption that the PAL and NTSC TIA's colour-clock logic match, apart from line count and colour encoding, which the TIA doesn't count or check anyway | **(a)** Accept the assumption for self-tests and screenshots. A disagreement with LD that traces to PAL/NTSC is a finding for Sai. (b) Use MVT only for tests that are timing-independent of the TIA variant, with Beru's model as arbiter for the rest | §7.2, §7.4, §9 |
 | D9 | Cartridge | **(a)** 4 KB (and 2 KB mirrored) ROM, no bank switching. MVT `cartridge/` (46 tests of mappers, DPC, Supercharger) is out of scope | §8, §9 |
 
 ## 4. Clocks and timing
@@ -110,13 +112,13 @@ Each one needs a ruling before v1. My recommendation is listed first.
 | 111111 | n/a | ERR | illegal state: reset to 0 |
 
   So pixel *x* (0–159) of a line without HMOVE is colour clock 68 + *x* from the SHB-reset origin.
-- **Vertical timing is software's job**: VSYNC D1 and VBLANK D1 (SPG pp.4–5, p.37). The usual frame is 3 + 37 + 192 + 30 = 262 lines (SPG p.1), but the TIA neither counts nor checks lines. The model's frame boundary is the rising edge of the VSYNC latch (D4).
+- **Vertical timing is software's job**: VSYNC D1 and VBLANK D1 (SPG pp.4–5, p.37). The usual frame is 3 + 37 + 192 + 30 = 262 lines (SPG p.1), but the TIA neither counts nor checks lines. The model's frame boundary is the **falling** edge of the VSYNC latch (D4): a captured frame is every line after the VSYNC lines, 259 lines in the MVT reference PNGs. Homer's runner uses this one rule.
 
 ### 4.2 CPU clock and the bus (SPG pp.4, 18–19)
 - Φ0 = OSC ÷ 3, so one CPU cycle = 3 colour clocks and a line is 76 CPU cycles (SPG p.4).
 - Per D3, the 6502 core advances one cycle per Φ0 period. *Decision* (proposed): the CPU's Φ2 equals Φ0 with no delay (on the real board the 6507 makes Φ2 from Φ0 with a few ns of lag, which we don't model).
 - TIA write: data and address are latched "when the Φ2 clock goes from high to low" (SPG p.18). The colour clock and half on which that edge falls within the 3-clock CPU cycle **[check: SPG p.46 "TIA Φ0..Φ2 and LUM timing" (hand-drawn page image) and LD s1 D7 "DIVIDE BY THREE", s2 B6 Φ2 path]**. Every RESPx, HMOVE and mid-line write result in §6 depends on this one alignment, so it is the first thing to settle.
-- The divide-by-3 counter's phase relative to the H@1/H@2 clock is free-running. LD s1 shows a RESΦ0 path from RSYNC (SPG p.50 drawing "RSYNC – RESΦ0 – HΦ1 – HΦ2 – SHB – Φ2 – Φ0"): **[check]** whether RSYNC also realigns Φ0.
+- The divide-by-3 counter's phase relative to the H@1/H@2 clock is free-running. LD s1 shows a RESΦ0 path from RSYNC (SPG p.50 drawing "RSYNC – RESΦ0 – HΦ1 – HΦ2 – SHB – Φ2 – Φ0"): **[check, top priority]** whether RSYNC also realigns Φ0. 228 = 3 × 76, so the Φ0-to-line phase only moves on an RSYNC that cuts a line by a non-multiple of 3. This decides whether `CLEAN_START`'s double RSYNC normalises the phase for the 80 ROMs other than `reset-phase` (MVT `collision/reset-phase` skips `CLEAN_START` on purpose).
 
 ## 5. Reset and power-on (D7)
 - TIA: no reset pad. With `rst` = 1 the model sets (*Decision*, proposed): every write register and latch to 0, HSync counter = 0 with H-phase = H@1 start, divide-by-3 phase = 0, object position counters = 0, the HMOVE "more motion" latches clear, collision latches clear, WSYNC/RDY released, audio poly counters to a stated non-illegal state [check: LD s4, which state the hardware can't lock in].
@@ -128,7 +130,7 @@ Each one needs a ruling before v1. My recommendation is listed first.
 
 ### 6.1 Registers (SPG pp.3, 18, 37–45)
 - **Writes**: 45 addresses `$00`–`$2C`, decoded on A0–A5 (SPG p.44, LD s2). Writes to `$2D`–`$3F` do nothing. "There are no registers that are both read and write" (SPG p.18). Strobes act on the write and ignore the data.
-- **Reads**: 14 addresses on A0–A3 (SPG p.45). The TIA drives only D7 and D6. Which of these two lines it drives for each read address (CXBLPF's "unused" D6, and INPTx's D6) is **[check: LD s2 C6 "TRI STATE SELECTORS" against MVT `cpu/partial-drive`]**. Lines the TIA doesn't drive keep the board's bus residue (§8). Read addresses with low nibble `$E`/`$F` drive nothing.
+- **Reads**: 14 addresses on A0–A3 (SPG p.45). The TIA drives only D7 and D6. Per MVT `cpu/partial-drive` (checked through the `$10/$20/$30` mirrors): INPT0–INPT5 drive **D7 only**, and the collision registers drive D7 and D6. CXBLPF's D6 ("most collision registers") is still **[check: LD s2 C6 "TRI STATE SELECTORS"]**. Lines the TIA doesn't drive keep the board's bus residue (§8). Read addresses with low nibble `$E`/`$F` drive nothing.
 
 **Write map** (SPG p.44 for addresses, pp.37–43 for bits. The summary table on p.44 of the reconstruction has misplaced bit columns for AUDC0/1 and AUDF0/1; the detail pages govern: AUDC = D3–D0, AUDF = D4–D0, §10):
 
@@ -178,7 +180,12 @@ Each one needs a ruling before v1. My recommendation is listed first.
 
 ### 6.5 Movable objects: position counters (SPG pp.8, 20–21, 39; LD s3, s5)
 - Each of P0, P1, M0, M1 and BL has a 6-bit polynomial position counter with a period of 40 counts (160 colour clocks), clocked only in the visible part of the line by MOTCK (plus HMOVE's extra pulses, §6.6). So an object keeps its column from line to line (SPG p.20).
-- RESxx strobes reset that counter "at any time" (SPG p.20). During horizontal blank the object lands at the left edge (SPG p.8, p.20). Where it lands for a visible-region strobe, relative to the write's colour clock, is the main [check] of this chip. Towers: players appear 5 pixels right of the reset pixel. Missiles and the ball differ by 1 because the player START latch adds 1 CLK. A RESBL strobe starts drawing the ball at once, while RESPx/RESMx start no copy until the counter wraps. MVT `collision/reset-phase` says the landing depends on the strobe's colour-clock phase, not just on its CPU cycle. **[check: LD s3, s5]**
+- RESxx strobes reset that counter "at any time" (SPG p.20). Landing rule (MVT `collision/copy-adjacency` and `draw-delay`, **[check: LD s3, s5]**), in colour-clock pixels *x* where *s* is the strobe's pixel (colour clock − 68):
+  - Player: first pixel = the later of *s* + 5 and (end of blank) + 3. Missile and ball: 1 earlier, *s* + 4 and (end of blank) + 2 (players start 1 clock after missiles and the ball).
+  - End of blank is 68 on a plain line (so the blank arm gives P at pixel 3, M/BL at pixel 2) and 76 on an HMOVE line (§6.6, the comb), so an HMOVE-line strobe at colour clock 75 beats the blank arm by one pixel (the Pitfall! placement).
+  - Players in the stretched modes 101 and 111 start **one colour clock later** (MVT `tia-render/nusiz`: main copy at x = 18 in 1× modes, x = 19 in stretched modes).
+  - A RESBL strobe starts the ball at once. After a RESPx/RESMx in the visible region, the **main copy** (the start at count 0) is not drawn until the counter wraps. The NUSIZ copies, decoded at counts 3, 7, 15 *before* the wrap, are still drawn on that line (reproducer: NUSIZ0 = %001, GRP0 = $FF, RESP0 near pixel 40: the close copy draws at reset + 5 + 16).
+  - MVT `collision/reset-phase`: the landing also depends on the strobe's colour-clock phase inside the CPU cycle, not just on the CPU cycle (the fault sits at one strobe phase). It is not counted as coverage of this rule (§9, T5).
 - NUSIZ D2–D0 (SPG p.39): copies and size, the same decodes for player and missile (SPG p.20):
 
 | D2–D0 | Player | Copies at +0 and |
@@ -204,7 +211,7 @@ Each one needs a ruling before v1. My recommendation is listed first.
 - SPG's constraints are programming advice, not limits of the model: "must immediately follow a WSYNC" and "should not be modified for at least 24 machine cycles after an HMOVE" (SPG p.9, p.21, p.40). The model computes whatever LD computes for every strobe time and every rewrite. That is how the late-HMOVE and stuck-motion results in MVT `tia-timing/hmove-*` (19 tests) arise.
 
 ### 6.7 Collisions (SPG pp.10, 24, 41, 45; LD s2)
-15 latches, one per object pair (6 objects), set when both serial outputs are 1 on the same colour clock (SPG p.24). This includes clocks inside blank? **[check: LD s2 "COLLISION LATCHES" gating; MVT `collision/blank-gating`]**. CXCLR clears all 15.
+15 latches, one per object pair (6 objects), set when both serial outputs are 1 on the same colour clock (SPG p.24). Gating (MVT `collision/blank-gating`, citing the TIA-1A schematic: "collision inputs are NANDed with the inverted VBLANK"): **only VBLANK D1 gates the latches**. HBLANK, the HMOVE comb and the stretched blank do **not**. Objects can fire inside HBLANK thanks to HMOVE's extra clocks. The `blk` output of §6.2 (HBLANK OR VBLANK) must not gate collisions **[check: LD s2]**. CXCLR clears all 15.
 
 ### 6.8 Input ports (SPG pp.11, 25, 37; LD s2 "INPUT PORTS")
 - I0–I3: INPTn D7 = pin level, forced to 0 while VBLANK D7 = 1 (dump to ground). The analog RC charge time is the testbench's job: a paddle is a pin that goes to 1 some number of lines after the dump is released.
@@ -238,8 +245,13 @@ RS = 0: RAM, A0–A6 select the byte. RS = 1:
 | W | 0 | – | 1 | PA7 IRQ en | edge (0 = negative) | edge detect control | `$284`/`$285` |
 
 ### 7.2 Timer (RIOT DS pp.8–9, Figure 3 page image; SPG p.12)
-- Write N to a timer address on Φ2 pulse 0 with divide D. The timer reads N − ⌊k/D⌋ − 1 on pulse k (DS Figure 3: 52, ÷8 → 25 at pulse 213 and 0 at pulse 415). At pulse N·D (416) it underflows to `$FF`, sets the timer flag, and from then on decrements once per Φ2 (DS p.8). SPG p.12 says the same: it holds 0 for one interval, then goes to `FF` and decrements once each clock.
-- Discrepancy, **[check]**: DS Figure 3 item 5 reads `10101100` (= `$AC`) at pulse 500. The once-per-pulse rule from `$FF` at pulse 416 gives `$AB`. MVT `riot/timer-underflow-read` and `timer-vblank-spin` were verified on hardware, so they are the arbiters here.
+- Write N to a timer address on Φ2 pulse 0 with divide D. The timer reads N − ⌊k/D⌋ − 1 on pulse k (DS Figure 3: 52, ÷8 → 25 at pulse 213 and 0 at pulse 415). **The underflow is at pulse N·D** (416 in that example): it goes to `$FF`, sets the timer flag, and from then on decrements once per Φ2 (DS p.8, SPG p.12). MVT `riot/timer-underflow-read` (hardware-verified): a read **on** pulse N·D returns `$FF` and leaves the flag set. A read one cycle later clears it.
+- Timer edge cases R2 tests, with what is settled and what isn't:
+  - N = 0: pulse N·D = 0 is the write cycle itself. Proposed: the timer reads `$FF` from pulse 1 (the formula) and the flag sets at pulse 1. **[Open, Beru to check with a directed test, DS p.8]**
+  - Past `$00` at ÷1: it wraps to `$FF` and keeps decrementing once per Φ2. The flag stays set until cleared.
+  - Read after underflow: clears the flag. Whether it also restores ÷D **[Open: DS p.8–9, MVT `riot/timer-vblank-spin`]**.
+  - Prescaler on write: the formula assumes a write restarts the prescaler, so pulse 0 is the write. MVT cancels the phase out, so it can't arbitrate this: it needs the datasheet text **[Open: DS p.8, Figure 3]**.
+- Discrepancy, **[check]**: DS Figure 3 item 5 reads `10101100` (= `$AC`) at pulse 500. The once-per-pulse rule from `$FF` at pulse 416 gives `$AB`. MVT `riot/timer-underflow-read` and `timer-vblank-spin` were verified on hardware, so they are the arbiters here (D10).
 - Flags (DS p.9, Figure 4): D7 = timer flag, D6 = PA7 flag, D5–D0 read 0. The timer flag clears when the timer is written or read, "however, the reading of the timer at the same time the interrupt occurs will not reset the interrupt flag" (DS p.9). Reading the flag register clears the PA7 flag only (DS p.9).
 - `irq_n` = 0 while (timer flag and the timer IRQ enable) or (PA7 flag and the PA7 enable). The timer IRQ enable is A3 of the last timer write (DS p.8). Whether a timer read's A3 also changes it **[check: DS p.8 "During a Read or Write operation address line A3 controls the interrupt capability"]**.
 
@@ -266,7 +278,7 @@ An active transition on PA7 sets the PA7 flag, "even if the pin is being used as
 - T2 Φ0 = OSC/3 and the Φ2 write edge alignment (§4.2).
 - T3 WSYNC: RDY low from the write to SHB, read-cycle-only halt; RSYNC.
 - T4 Playfield: every bit at 4 clocks, copy and reflect, SCORE, PFP, mid-line writes.
-- T5 Each object: RESxx in blank and at every visible colour-clock phase, NUSIZ copies and sizes, REFP, VDEL old/new copying, RESMP lock.
+- T5 Each object: RESxx in blank and at **every** strobe colour-clock phase in all 3 sub-cycle phases (we do not rely on MVT `reset-phase`, which tests one phase), NUSIZ copies and sizes, REFP, VDEL old/new copying, RESMP lock.
 - T6 HMOVE: every HM value at the standard strobe, every strobe cycle across the line, rewrites during the 64-clock window, HMCLR.
 - T7 Collisions: all 15 pairs, CXCLR, gating in blank.
 - T8 Inputs: dump, latch, latch reset.
@@ -288,6 +300,7 @@ An active transition on PA7 sets the PA7 flag, "even if the pin is being used as
      (b) Building the ROMs needs **dasm** (GPL-2.0, a build tool, not shipped) and its `vcs.h`/`macro.h` (licence text in those headers **[check]**, Homer). Or use the prebuilt binaries in github.com/ajoneil/missingno (MIT): Homer proposes which, with both hashes recorded, as for zexdoc.
      (c) D6: the ROMs as built contain `$AB` (LXA #0) and `$04` (NOP zp).
      (d) A screenshot needs a 7-bit code → RGB inverse map from the reference palette, and a rule for which frame is captured. Homer defines both from the MVT/missingno runner and records them in the runner.
+   - **Not coverage**: `collision/reset-phase` passes at other strobe phases whatever the model does, so it isn't counted as evidence for object reset landing. T5 carries that.
    - **Pass criterion**: all 54 self-tests reach `$A5` within a frame budget the runner states, and all 27 screenshots match. Runs go through `heavy` (they are full-system runs).
 2. **Cross-check only**: SingleStepTests 65x02 (already used for chip-6502) on the core copy after D3/D6.
 3. **Demo** (Homer): our own 2600 program, no commercial ROM. A title screen with playfield, two players, a moving ball and a tone, dumped as PNG frames (and a WAV if D5 (a)), and used for the website card.
@@ -299,7 +312,7 @@ An active transition on PA7 sets the PA7 flag, "even if the pin is being used as
 - [x] WSYNC/RDY release at the leading edge of horizontal blank (SPG p.19, p.37).
 - [x] RIOT addressing, timer, flags and PA7 (RIOT DS pp.6–10, text layer; Figure 3 timer timing and Figure 4 flags from the page image p.9).
 - [x] LD sheet titles, rev E, and pad numbers in §2.1, read from the 2048-px scans 2026-11-26. [check] at 400 dpi.
-- [ ] Φ2 write edge vs colour clock (§4.2): SPG p.46 + LD s1/s2.
+- [ ] **First:** RSYNC → RESΦ0 and whether it realigns Φ0 (§4.2), and the Φ2 write edge vs colour clock (§4.2): SPG p.46 + LD s1/s2. Everything mid-line depends on these.
 - [ ] HSync counter decodes (§4.1) and RSYNC (§6.2): LD s1.
 - [ ] Object reset landing, start delays, NUSIZ decodes, RESMP (§6.5): LD s3, s5.
 - [ ] HMOVE counter and comparators (§6.6): LD s1.
