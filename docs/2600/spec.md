@@ -42,7 +42,7 @@ Package pads from LD (the pad boxes carry pad numbers), read from the 2048-px sc
 | `rst` | in | 1 | none | *Model pin*: the TIA has no reset pad (LD: none on any sheet). Sets the power-on state of §5 |
 | `phi0` | out | 1 | Φ0 4 | CPU clock = OSC ÷ 3 (SPG p.19 "divide by three counter … output (1.19 MHz) … pad called Φ0") |
 | `phi2` | in | 1 | Φ2 26 | The CPU's Φ2. Writes latch "when the Φ2 clock goes from high to low", reads are valid "while the Φ2 clock is high" (SPG p.18) |
-| `cs` | in | 4 | CS0 24, CS1 23, CS2 22, CS3 21 | Chip selects. Polarities (CS0, CS3 active low?) [check: LD s2 B7 and the SPG pinout drawing]. The board wiring is §8 |
+| `cs` | in | 4 | CS0 24, CS1 23, CS2 22, CS3 21 | Chip selects. In the console, CS0 = A12 and CS3 = A7, both selecting at 0 (FSM Table 4-1, §8.1). CS1 and CS2 are tied [check: LD s2 B7]. The board wiring is §8 |
 | `rw` | in | 1 | R/W 25 | 1 = read |
 | `a` | in | 6 | A0–A5 32…27 | Writes decode A0–A5 (45 decodes, LD s2 "WRITE ADDRESS DECODES"). Reads decode A0–A3 (LD s2 RA0–RA3) |
 | `d_in` | in | 8 | D0–D5 14–19, D6 33, D7 34 | Write data |
@@ -288,11 +288,12 @@ An active transition on PA7 sets the PA7 flag, "even if the pin is being used as
 
 ## 8. System (board) and behaviours to test
 
-### 8.1 Board (from MVT `riot/io-mirrors` and `ram-mirrors` headers, **[check: the 2600 console schematic]**)
+### 8.1 Board (FSM Table 4-1; MVT `riot/io-mirrors` and `ram-mirrors` headers)
+**FSM**: Atari, *2600/2600A VCS Domestic (M/N) Field Service Manual*, FD100133 Rev. 02, January 1983 (vtda.org scan, 153 PDF pages, text layer). Table 4-1, "Connected Pins on Motherboard", p.4-47 (PDF p.88), lists every address and data line at the MPU (A200), TIA (A201), RIOT (A202) and cartridge connector (J200). The motherboard schematics themselves were a pocket insert and aren't in this scan.
 - A12 = 1: cartridge, A0–A11. A 2 KB image is mirrored.
 - A12 = 0, A7 = 0: TIA (writes A0–A5, reads A0–A3).
 - A12 = 0, A7 = 1, A9 = 0: RIOT RAM (A0–A6). A12 = 0, A7 = 1, A9 = 1: RIOT I/O and timer.
-- So TIA CS wiring: CS0 = A12 (active low) and CS3 = A7 (active low), CS1/CS2 tied, **[check]**. RIOT: CS1 = A7, CS2_n = A12, RS_n = A9.
+- Wiring per FSM Table 4-1: **AB12 → TIA pin 24 (CS0) and RIOT pin 37 (CS2)**, **AB7 → TIA pin 21 (CS3) and RIOT pin 38 (CS1)**, **AB9 → RIOT pin 36 (RS)**. AB8, AB10 and AB11 reach only the MPU and the cartridge (pins 22, 19, 20), and AB6 isn't wired to the TIA. TIA A0–A5 = pins 32–27, D0–D5 = 14–19, D6 = 33, D7 = 34, which agrees with the LD pad numbers in §2.1. RIOT A0–A6 = pins 7–2 and 40, D0–D7 = 33–26. So the TIA is selected with A12 = 0 and A7 = 0, and the RIOT with A12 = 0 and A7 = 1, as the MVT headers say. Table 4-1 doesn't list TIA CS1 (23) and CS2 (22). In the model they're tied to their enabling levels **[check: a 2600 motherboard schematic; LD s2's rev E notes mention CS1/CS3 changes]**.
 - **Bus residue** (*Decision*, proposed): the data bus has no pull-ups, so the model's bus holds the last value any chip or the CPU drove, per bit. A read cycle takes the TIA-driven bits from the TIA and every other bit from the residue (MVT `cpu/floating-bus`, `open-bus`, `partial-drive`).
 - Idle inputs: `swcha_in` = `$FF`, `inpt[5:0]` = 1, `swchb_in` = `$0B` (colour, no switch pressed, both difficulties B [check: SPG p.13 bits]).
 
@@ -345,7 +346,8 @@ An active transition on PA7 sets the PA7 flag, "even if the pin is being used as
 - [ ] Collision gating (§6.7), priority with SCORE/PFP (§6.9): LD s2, s5.
 - [ ] Audio clock and poly counters (§6.10): LD s1, s4.
 - [ ] RDY lead time (§6.3): SPG p.51 page image, LD s1.
-- [ ] TIA chip selects and the board decode (§2.1, §8.1): 2600 console schematic.
+- [x] Board decode (§8.1): FSM FD100133 Rev. 02 Table 4-1, p.4-47 (PDF p.88, text layer), read 2026-11-27. A12 → TIA CS0 and RIOT CS2, A7 → TIA CS3 and RIOT CS1, A9 → RIOT RS. The TIA/RIOT address and data pin numbers agree with §2.1 and RIOT DS p.1.
+- [ ] TIA CS1/CS2 tie levels (§2.1): needs a 2600 motherboard schematic (FSM pocket insert, not in the scan).
 - [x] Timer count and underflow pulse (§7.2): DS p.9 ("417T", Figure 3 items 2, 3, 5 from the page image) and MVT `riot/timer-vblank-spin` (hardware profile, simulated 2026-11-26) agree on underflow at pulse N·D + 1. DS Figure 3 item 4 ("#416") is the outlier. Still open: the ÷1 second wrap and the pulse on which ÷D resumes after a read (R2).
 - [x] 1982 MOS Data Catalog (bitsavers), 6532 pp.2-107 to 2-116, compared with the 2/81 datasheet on 2026-11-27: the same text, including Figure 3 ("#416", items 2, 3 and 5) and "(52 × 8) + 1 = 417T". It's a second printing, not an independent source, so §7.2's evidence is unchanged.
 - [ ] The CO10444 part number; the 1976 MOS 6532 printing.
