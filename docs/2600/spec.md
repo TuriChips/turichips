@@ -78,7 +78,9 @@ Not modelled: DEL 10 (colour delay adjust), VCC 20, VSS 1.
 
 ## 3. Decisions for Sai
 
-Each one needs a ruling before v1. My recommendation is listed first.
+**Ruled 2026-11-26 (Sai, #needs-sai: "approve all from my end"):** option (a), the recommended one, on D1–D10, and the hardware result on PA7 (§7.4: a polarity change does not set the flag, per MVT `riot/pa7-polarity`). Igris recorded this reading of "approve all"; Sai can overrule any item. The spec stays draft v0.2 until the remaining **[check]** items in §10 are closed.
+
+Each one needed a ruling before v1. My recommendation is listed first.
 
 | # | Question | Options (recommended first) | Governs |
 |---|----------|-----------------------------|---------|
@@ -267,7 +269,7 @@ RS = 0: RAM, A0–A6 select the byte. RS = 1:
 - In the console, Port A = joysticks (or paddle triggers or keyboard rows), Port B = console switches (SPG pp.13–15). Port B is "hardwired" as input by the board, not by the chip: SWBCNT is still a writable DDR [check: MVT `riot/io-ports`].
 
 ### 7.4 PA7 edge (RIOT DS p.7, p.10)
-An active transition on PA7 sets the PA7 flag, "even if the pin is being used as … output", and also when the interrupt is disabled (DS p.7). Reset selects the negative edge with the interrupt disabled (DS p.10). Changing polarity may itself set the flag (DS p.7: "It may also be set by changing the polarity of the active interrupt"). MVT `riot/pa7-polarity` says this does **not** happen on the tested console. **[Sai: hardware result vs datasheet wording; I propose following the hardware, as the datasheet says "may"]**.
+An active transition on PA7 sets the PA7 flag, "even if the pin is being used as … output", and also when the interrupt is disabled (DS p.7). Reset selects the negative edge with the interrupt disabled (DS p.10). Changing polarity may itself set the flag (DS p.7: "It may also be set by changing the polarity of the active interrupt"). MVT `riot/pa7-polarity` says this does **not** happen on the tested console. **Ruled by Sai 2026-11-26: follow the hardware (a polarity change does not set the flag); the datasheet says "may".**.
 
 ## 8. System (board) and behaviours to test
 
