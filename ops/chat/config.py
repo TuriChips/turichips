@@ -38,7 +38,10 @@ DISPATCH = {
 
 # Seats: a shared pool, not one seat per agent. Any persona runs on any pool seat; the budget watcher
 # (seats.py) picks the seat with the most room against its weekly pace and keeps a buffer on every seat.
-POOL = ["seat1", "seat2", "seat3"]   # seat0 (Sai's own) may join later
+# The seats are split with TuriMath (same accounts, same VM): seat1 is TuriChips' own, seat2 TuriMath's own,
+# seat0 (Sai's, CLAUDE_CODE_OAUTH_TOKEN) and seat3 are shared by both. Each factory sees the shared seats' real
+# usage (it comes back with every run), so neither plans on room the other has taken.
+POOL = ["seat0", "seat1", "seat3"]
 WEEKLY_BUFFER = 0.08                 # never plan to use the last 8% of a seat's week
 FIVE_HOUR_CEILING = 0.95             # no new launches on a seat past this in its 5-hour window
 SEAT_MAX_RUNNING = 2                 # turns at once per seat (task + chat)
@@ -68,8 +71,7 @@ PLANNER = "igris"
 SYSTEM = {"id": "shift", "name": "Shift", "role": "Scheduler", "color": "#475569"}
 
 # Seats outside the pool that the Usage tab still tracks, with the label shown in place of agent names.
-# seat0 is Sai's own account (CLAUDE_CODE_OAUTH_TOKEN: the router and Sai's own Claude Code), seat4 is shared outside the company.
-USAGE_ONLY_SEATS = {"seat0": "Sai + router", "seat4": "shared, no agents"}
+USAGE_ONLY_SEATS = {"seat2": "TuriMath's seat", "seat4": "shared outside the company, no agents"}
 
 # The personas. Every agent also gets a direct-message channel: dm-<id>.
 # Seat tokens are CLAUDE_TOKEN_<SEAT> in the env file (a seat without one falls back to CLAUDE_CODE_OAUTH_TOKEN).
