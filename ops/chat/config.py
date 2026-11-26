@@ -24,7 +24,13 @@ DISPATCH = {
     "tick_seconds": 5 * 60,          # dispatch at least this often even when nothing changed
     "continue_gap_seconds": 5 * 60,  # an issue task that ended DONE continues after this
     "planner_gap_seconds": 60 * 60,  # the planner (Igris) runs at most this often
-    "planner_idle_agents": 4,        # ...and only when at least this many agents have nothing ready or running
+    # Supervisor (dispatcher.py, "Company state"): when nothing is running or ready, one Haiku call decides
+    # whether work can move, the queue needs planning, or everything is waiting on Sai.
+    "quiet_grace_seconds": 10 * 60,  # nothing running or ready for this long: the team is quiet, check why
+    "check_min_seconds": 15 * 60,    # gap after a check that led nowhere; doubles each time...
+    "check_max_seconds": 4 * 3600,   # ...up to this. Any DONE resets it.
+    "max_nudges": 2,                 # the supervisor may wake one task this often in a row without a DONE
+    "planner_idle_limit": 2,         # planner turns in a row that filed nothing: stop planning, tell Sai
     "stall_seconds": 20 * 60,        # no output from a running turn for this long: warn in #needs-sai (never kill)
     "task_timeout_seconds": 6 * 3600,  # safety net only; long-horizon turns are the point
     "sai_digest_hour_ist": 10,       # daily list of open sai-review PRs in #needs-sai, first poll after this hour
