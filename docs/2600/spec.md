@@ -189,6 +189,17 @@ Each one needed a ruling before v1. My recommendation is listed first.
 
 ### 6.5 Movable objects: position counters (SPG pp.8, 20–21, 39; LD s3, s5)
 - Each of P0, P1, M0, M1 and BL has a 6-bit polynomial position counter with a period of 40 counts (160 colour clocks), clocked only in the visible part of the line by MOTCK (plus HMOVE's extra pulses, §6.6). So an object keeps its column from line to line (SPG p.20).
+- **Decode matrices (LD s3 player and missile, s5 ball; 400-dpi scans read 2026-11-27).** These matrices carry no octal labels. They were read dot by dot: a pull-down on a stage's inverted column means that bit = 1, and on its true column, bit = 0. In Q1…Q6 order, the same order as §4.1:
+
+| Row | Player (s3) | Missile (s3) | Ball (s5) | Count | Meaning |
+|-----|-------------|--------------|-----------|-------|---------|
+| 1 | 111111 | 111111 | 111111 | n/a | ERR: illegal state, reset |
+| 2 | 101101 | 101101 | 101101 | 39 | wrap: reset to 000000 and start the main copy |
+| 3 | 111000 | 111000 | none | 3 | copy start, "close" (+16) |
+| 4 | 101111 | 101111 | none | 7 | copy start, "medium" (+32) |
+| 5 | 111001 | 111001 | none | 15 | copy start, "wide" (+64) |
+
+  Counts come from the §4.1 sequence. Each object counter's feedback gates are drawn as in §4.1 (Q5, Q6). Every row equals Towers' table (0 differences). The ball has only the ERR and wrap rows, which is SPG p.20's "only the zero crossing decode". A copy decoded at count *c* starts drawing one count later, so the offsets from the main copy (count 40 ≡ 0) are 4 × (*c* + 1) = 16, 32 and 64 colour clocks. Rows 3–5 also carry dots on four lines that aren't counter stages: row 3 on two of them, rows 4 and 5 on two others. These are the NUSIZ number-select gating (NZ0/NZ1/NZ2 at LD s3 C4). Which NUSIZ codes enable which row is still [check: LD s3 "PLAYER NUMBER SELECT"]. The table below takes it from SPG p.39 and Towers.
 - RESxx strobes reset that counter "at any time" (SPG p.20). Landing rule (MVT `collision/copy-adjacency` and `draw-delay`, **[check: LD s3, s5]**), in colour-clock pixels *x* where *s* is the strobe's pixel (colour clock − 68):
   - Player: first pixel = the later of *s* + 5 and (end of blank) + 3. Missile and ball: 1 earlier, *s* + 4 and (end of blank) + 2 (players start 1 clock after missiles and the ball).
   - Both arms are in pixels. End of blank is pixel 0 on a plain line, so the blank arm puts P at 3 and M/BL at 2. On an HMOVE line it is pixel 8 (§6.6, the comb), so P lands at 11 and M/BL at 10. Example: on an HMOVE line, a strobe at colour clock 75 (*s* = 7) puts P at max(12, 11) = 12. The strobe arm wins by one pixel.
@@ -208,7 +219,7 @@ Each one needed a ruling before v1. My recommendation is listed first.
 | 110 | three, medium | +32, +64 |
 | 111 | quad size | none |
 
-  Offsets from Towers' decodes (counts 3, 7, 15 → 16, 32, 64 colour clocks) **[check: LD s3 "PLAYER NUMBER SELECT"]**. Missiles draw one copy in modes 101 and 111 (Towers, [check]).
+  Offsets: the decodes at counts 3, 7 and 15 are read from LD s3 (table above), giving 16, 32 and 64 colour clocks. Which NUSIZ codes enable each decode is still **[check: LD s3 "PLAYER NUMBER SELECT"]**. Missiles draw one copy in modes 101 and 111 (Towers, [check]).
 - Players: GRPx is scanned D7 first, or D0 first with REFPx D3 = 1 (SPG p.41), 1, 2 or 4 colour clocks per bit (SPG p.22). Missile width NUSIZ D5–D4 and ball width CTRLPF D5–D4: 1, 2, 4 or 8 colour clocks (SPG pp.38–39).
 - Enables: ENAMx D1, ENABL D1 (SPG p.41).
 - RESMPx D1 = 1: the missile is disabled and its position is locked to "the center of its corresponding player" until D1 = 0 (SPG p.21, p.39). Mechanism: the missile counter is reset while the player's scan counter is at 4 during the main copy (Towers, [check: LD s3 "MISSILE TO PLAYER RESET"]).
@@ -217,6 +228,7 @@ Each one needed a ruling before v1. My recommendation is listed first.
 ### 6.6 HMOVE (SPG pp.8–9, 21, 40; LD s1 "MOTION REGISTERS")
 - HMxx D7–D4 is a two's-complement motion, +7 (left) to −8 (right) (SPG p.40). HMCLR clears all five (SPG p.40).
 - An HMOVE strobe applies all five at once. Mechanism (Towers, [check: LD s1]): it sets the HMOVE latch, which makes blank end at LRHB (+8 pixels, the comb) and is cleared at the line wrap. A 4-bit ripple counter runs 15 → 0 once every 4 colour clocks, and each object takes one extra clock pulse per step until its comparator matches (the D7 bit is compared inverted). Net motion = (HM ^ 8) − 8 pixels left.
+- **Motion-register cells (LD s1 A8–B7, 400-dpi scan read 2026-11-27):** the 20 HMxx bits use two cell types. "Typical cell, 15 places" holds D4–D6 for 5 objects. "Typical cell, 5 places" holds the D7 row: its callout arrow points at that row (read from the 2048-px scan, [check] at 400 dpi). Both store D through a pass gate into a dynamic node (`*`), an inverter, and a NOR whose other input is HMCLR. Each drives a 2-transistor compare onto a 40/6 match line. The **only difference** is that the two compare transistors' gates are swapped: in the 15-place cell the upper one takes the inverter output and the lower one the NOR output, and in the 5-place cell the reverse. So D7 enters the compare in the opposite polarity to D4–D6. That is Towers' "D7 compared inverted", now from the drawing. Still [check: LD s1]: the 4-bit ripple counter, its start value and step phase, the per-object "more motion" latches and when the compare is sampled.
 - SPG's constraints are programming advice, not limits of the model: "must immediately follow a WSYNC" and "should not be modified for at least 24 machine cycles after an HMOVE" (SPG p.9, p.21, p.40). The model computes whatever LD computes for every strobe time and every rewrite. That is how the late-HMOVE and stuck-motion results in MVT `tia-timing/hmove-*` (19 tests) arise.
 
 ### 6.7 Collisions (SPG pp.10, 24, 41, 45; LD s2)
@@ -326,8 +338,10 @@ An active transition on PA7 sets the PA7 flag, "even if the pin is being used as
 - [ ] **First:** RSYNC → RESΦ0 and whether it realigns Φ0 (§4.2), and the Φ2 write edge vs colour clock (§4.2): SPG p.46 + LD s1/s2. Everything mid-line depends on these.
 - [x] HSync counter (§4.1): the feedback is XNOR(Q5, Q6), and the 8 decode labels (octal 17, 73, 74, 16, 72, 15, 12, 77) are SHS/RHS/RCB/RHB/LRHB/CNT/END/ERR at counts 4/8/12/16/18/36/56. Read from the LD s1 400-dpi scan (AtariAge `TIA_1A_400dpi_1.zip`, 14400 × 9818), 2026-11-27, and cross-checked by script against Towers' table: 0 differences.
 - [ ] The 4-CLK decode latch delays and the H@1/H@2 phase (§4.1), and RSYNC (§6.2): LD s1.
-- [ ] Object reset landing, start delays, NUSIZ decodes, RESMP (§6.5): LD s3, s5.
-- [ ] HMOVE counter and comparators (§6.6): LD s1.
+- [x] Object position-counter decodes (§6.5): player and missile have 5 rows each (ERR, wrap at 39, copies at 3/7/15), the ball has 2 (ERR, wrap). Read dot by dot from the LD s3 and s5 400-dpi scans (AtariAge `TIA_1A_400dpi_3.zip`, `_5.zip`), 2026-11-27: 0 differences from Towers.
+- [ ] Object reset landing, start delays, NUSIZ → decode enables, missile copies in modes 101/111, RESMP (§6.5): LD s3, s5.
+- [x] HMOVE D7 inversion (§6.6): the 5-place cell (D7 row) swaps its two compare-transistor gates against the 15-place cell (D4–D6). LD s1 400-dpi scan, 2026-11-27.
+- [ ] HMOVE ripple counter, "more motion" latches and compare timing (§6.6): LD s1.
 - [ ] Collision gating (§6.7), priority with SCORE/PFP (§6.9): LD s2, s5.
 - [ ] Audio clock and poly counters (§6.10): LD s1, s4.
 - [ ] RDY lead time (§6.3): SPG p.51 page image, LD s1.
