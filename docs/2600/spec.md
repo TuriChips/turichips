@@ -1,4 +1,4 @@
-# Spec: Atari 2600 (TIA + RIOT), Chip #5: draft v0, not normative
+# Spec: Atari 2600 (TIA + RIOT), Chip #5: draft v0.2, not normative
 
 Status: **draft.** Nothing here is normative until Sai signs off. Lines marked **[check]** still need a page (or a schematic zone) confirmed in §10. Choices that are ours, not Atari's or MOS's, are marked *Decision*. §3 lists the ones Sai rules on. Written by Igris for turichips#48. After sign-off it moves to `TuriChips/chip-2600` (repo to create), the same way the Z80 spec did.
 
@@ -182,9 +182,9 @@ Each one needs a ruling before v1. My recommendation is listed first.
 - Each of P0, P1, M0, M1 and BL has a 6-bit polynomial position counter with a period of 40 counts (160 colour clocks), clocked only in the visible part of the line by MOTCK (plus HMOVE's extra pulses, §6.6). So an object keeps its column from line to line (SPG p.20).
 - RESxx strobes reset that counter "at any time" (SPG p.20). Landing rule (MVT `collision/copy-adjacency` and `draw-delay`, **[check: LD s3, s5]**), in colour-clock pixels *x* where *s* is the strobe's pixel (colour clock − 68):
   - Player: first pixel = the later of *s* + 5 and (end of blank) + 3. Missile and ball: 1 earlier, *s* + 4 and (end of blank) + 2 (players start 1 clock after missiles and the ball).
-  - End of blank is 68 on a plain line (so the blank arm gives P at pixel 3, M/BL at pixel 2) and 76 on an HMOVE line (§6.6, the comb), so an HMOVE-line strobe at colour clock 75 beats the blank arm by one pixel (the Pitfall! placement).
+  - Both arms are in pixels. End of blank is pixel 0 on a plain line, so the blank arm puts P at 3 and M/BL at 2. On an HMOVE line it is pixel 8 (§6.6, the comb), so P lands at 11 and M/BL at 10. Example: on an HMOVE line, a strobe at colour clock 75 (*s* = 7) puts P at max(12, 11) = 12. The strobe arm wins by one pixel.
   - Players in the stretched modes 101 and 111 start **one colour clock later** (MVT `tia-render/nusiz`: main copy at x = 18 in 1× modes, x = 19 in stretched modes).
-  - A RESBL strobe starts the ball at once. After a RESPx/RESMx in the visible region, the **main copy** (the start at count 0) is not drawn until the counter wraps. The NUSIZ copies, decoded at counts 3, 7, 15 *before* the wrap, are still drawn on that line (reproducer: NUSIZ0 = %001, GRP0 = $FF, RESP0 near pixel 40: the close copy draws at reset + 5 + 16).
+  - A RESBL strobe starts the ball on the same line, at *s* + 4 (the rule above). After a RESPx/RESMx in the visible region, the **main copy** (the start at count 0) is not drawn until the counter wraps. The NUSIZ copies, decoded at counts 3, 7, 15 *before* the wrap, are still drawn on that line (reproducer: NUSIZ0 = %001, GRP0 = $FF, RESP0 near pixel 40: the close copy draws at reset + 5 + 16).
   - MVT `collision/reset-phase`: the landing also depends on the strobe's colour-clock phase inside the CPU cycle, not just on the CPU cycle (the fault sits at one strobe phase). It is not counted as coverage of this rule (§9, T5).
 - NUSIZ D2–D0 (SPG p.39): copies and size, the same decodes for player and missile (SPG p.20):
 
@@ -245,13 +245,15 @@ RS = 0: RAM, A0–A6 select the byte. RS = 1:
 | W | 0 | – | 1 | PA7 IRQ en | edge (0 = negative) | edge detect control | `$284`/`$285` |
 
 ### 7.2 Timer (RIOT DS pp.8–9, Figure 3 page image; SPG p.12)
-- Write N to a timer address on Φ2 pulse 0 with divide D. The timer reads N − ⌊k/D⌋ − 1 on pulse k (DS Figure 3: 52, ÷8 → 25 at pulse 213 and 0 at pulse 415). **The underflow is at pulse N·D** (416 in that example): it goes to `$FF`, sets the timer flag, and from then on decrements once per Φ2 (DS p.8, SPG p.12). MVT `riot/timer-underflow-read` (hardware-verified): a read **on** pulse N·D returns `$FF` and leaves the flag set. A read one cycle later clears it.
+- Write N to a timer address on Φ2 pulse 0 (the write cycle) with divide D. On pulse k, for 1 ≤ k ≤ N·D, the timer reads **N − ⌊(k − 1)/D⌋ − 1**. So it reads N − 1 from pulse 1 and steps down on pulses 1 + D, 1 + 2D, …. **The underflow is at pulse N·D + 1**: the timer goes to `$FF`, the timer flag sets, and from then on it decrements once per Φ2, reading `$FF` − (k − N·D − 1) (DS p.8, SPG p.12).
+  - DS evidence: Figure 3 (52, ÷8) gives 25 at pulse 213 and 0 at pulse 415, which the formula reproduces. It also gives `10101100` = `$AC` at pulse 500 = `$FF` − 83, which only the N·D + 1 underflow reproduces. The DS text gives "total time to interrupt is (52 × 8) + 1 = 417T" (p.9), which agrees. Figure 3's item 4 ("interrupt has occurred at Φ2 pulse #416") is the one entry that doesn't: it puts the underflow a pulse early. The hardware result below arbitrates (D10).
+  - Hardware evidence: MVT `riot/timer-vblank-spin` asserts the loop-count profile [46, 47, 47, 47, 47, 47, 48, 48] (codes $01–$08, verified on hardware). With the first INTIM read at pulse 29 + 2(8 − IDX) and 9 pulses per loop (no page crossing), this formula gives that profile. The v0.1 formula (N − ⌊k/D⌋ − 1, underflow at N·D) gives [46, 46, …] and fails code $02 (Beru's B9; rechecked by Igris with an independent script, 2026-11-26).
+  - MVT `riot/timer-underflow-read` (hardware-verified): a read **on** the underflow pulse N·D + 1 returns `$FF` and leaves the flag set. A read one cycle later clears it.
 - Timer edge cases R2 tests, with what is settled and what isn't:
-  - N = 0: pulse N·D = 0 is the write cycle itself. Proposed: the timer reads `$FF` from pulse 1 (the formula) and the flag sets at pulse 1. **[Open, Beru to check with a directed test, DS p.8]**
-  - Past `$00` at ÷1: it wraps to `$FF` and keeps decrementing once per Φ2. The flag stays set until cleared.
-  - Read after underflow: clears the flag. Whether it also restores ÷D **[Open: DS p.8–9, MVT `riot/timer-vblank-spin`]**.
-  - Prescaler on write: the formula assumes a write restarts the prescaler, so pulse 0 is the write. MVT cancels the phase out, so it can't arbitrate this: it needs the datasheet text **[Open: DS p.8, Figure 3]**.
-- Discrepancy, **[check]**: DS Figure 3 item 5 reads `10101100` (= `$AC`) at pulse 500. The once-per-pulse rule from `$FF` at pulse 416 gives `$AB`. MVT `riot/timer-underflow-read` and `timer-vblank-spin` were verified on hardware, so they are the arbiters here (D10).
+  - N = 0: no special case. The underflow pulse N·D + 1 = 1, so the timer reads `$FF` and the flag sets at pulse 1. R2 tests it directly.
+  - ÷1: the general rule with D = 1 (N − 1 at pulse 1, one step per pulse, `$FF` at pulse N + 1). That free-run passes `$00` again 256 pulses later. It wraps to `$FF` and keeps going, with the flag still set, **[check: DS p.8 says only that it counts "down to a maximum of −255T"; R2 tests 300+ pulses past underflow]**.
+  - Read after underflow: clears the flag (DS p.9). It also ends the once-per-pulse free-run and goes back to ÷D. That comes from the MVT `riot/timer-divisors` header ("ends the post-underflow once-per-cycle free-run and re-arms the selected interval"). None of that test's codes ($01–$04) asserts it, so it's weaker evidence, and R2 checks it with a directed test. The pulse on which the ÷D counting resumes **[check: R2]**.
+  - Prescaler on write: a timer write restarts the prescaler, so pulse 0 is the write. MVT `riot/timer-vblank-spin` relies on this (line 61: "arm: resets the 64-cycle prescaler to a known phase"), and its hardware-verified profile is deterministic only if the write sets the phase. DS Figure 3 also counts from the write.
 - Flags (DS p.9, Figure 4): D7 = timer flag, D6 = PA7 flag, D5–D0 read 0. The timer flag clears when the timer is written or read, "however, the reading of the timer at the same time the interrupt occurs will not reset the interrupt flag" (DS p.9). Reading the flag register clears the PA7 flag only (DS p.9).
 - `irq_n` = 0 while (timer flag and the timer IRQ enable) or (PA7 flag and the PA7 enable). The timer IRQ enable is A3 of the last timer write (DS p.8). Whether a timer read's A3 also changes it **[check: DS p.8 "During a Read or Write operation address line A3 controls the interrupt capability"]**.
 
@@ -320,6 +322,6 @@ An active transition on PA7 sets the PA7 flag, "even if the pin is being used as
 - [ ] Audio clock and poly counters (§6.10): LD s1, s4.
 - [ ] RDY lead time (§6.3): SPG p.51 page image, LD s1.
 - [ ] TIA chip selects and the board decode (§2.1, §8.1): 2600 console schematic.
-- [ ] Timer value after underflow (§7.2): DS Figure 3 item 5 vs hardware (MVT).
+- [x] Timer count and underflow pulse (§7.2): DS p.9 ("417T", Figure 3 items 2, 3, 5 from the page image) and MVT `riot/timer-vblank-spin` (hardware profile, simulated 2026-11-26) agree on underflow at pulse N·D + 1. DS Figure 3 item 4 ("#416") is the outlier. Still open: the ÷1 second wrap and the pulse on which ÷D resumes after a read (R2).
 - [ ] The CO10444 part number; the 1976 MOS 6532 datasheet or the 1982 MOS catalog copy.
 - [x] MVT licence: MIT © 2026 Andrew O'Neil (LICENSE at 891c079, read 2026-11-26). The in-scope tests use no undocumented opcode in their own source (grep, 2026-11-26). The dasm macros do (D6).
