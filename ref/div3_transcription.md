@@ -42,6 +42,16 @@ HΦ2 comes from a flip-flop clocked by CLK, then a NOR, a NAND and an inverter b
 - Steady phase after line 1: **one phase per offset for every width and every model, except** `div3_sim` at a 1-half pulse (2 phases at the CLK = 1 starts). One RESΦ0 per line erases the power-on phase (agrees with #58 and my review there).
 - Caveat: `lag`/`lead` are two idealised orderings, not a timed simulation. A real answer needs gate delays (a SPICE-free timed run of the `FI` flip-flop path is the next step, or the SPG p.50 timing drawing).
 
+## 6. HΦ ring and RSYNC → Φ0 (`ref/hphi_ring.py`, output `ref/hphi_ring.log`)
+Gate-level run of the two `FI` flip-flops read from the LD s1 FI legend (C1) and the D5 ring; the RSYNC-forced RESΦ0 goes through `div3_netlist.run_lag`.
+- `FI` with R: R is a third input of the lower master NOR and of the upper slave NOR (Q = 0).
+- The ring runs 00 → 10 → 11 → 01. HΦ1 = NOR(Q1, Q2), HΦ2 = NOR(Q̄1, Q̄2). Free run: HΦ2 starts in CLK = 1 for all four start states.
+- RSYN holds the ring at 00 (HΦ1 high, HΦ2 low). First HΦ2 half comes 3 halves after a release in a CLK = 0 half, 4 after a release in a CLK = 1 half.
+- RSYN is gated off by the Φ0 40/6 pull-down (so it is high only while Φ0 is low and drops at the next Φ0 rise).
+- **Correction to §4:** RSYNL is set by the strobe and cleared by Q2, not "set from the second FI's Q̄ through an inverter".
+- Result: after an RSYNC, Φ0 is clean (all half-periods 3) if the PP input rise is the Φ0 rise. If PP inverts (Φ0 rise = PP-input fall), one Φ0 cycle around the RSYNC is 2 CLK (half-periods 2..3); after it, 3.
+- Caveat: same idealised `lag` ordering as §5, not a timed simulation. Polarity of PP is not settled by this run.
+
 ## What this changes in spec §4.2 (for Igris to apply; I do not own the spec)
 1. Drop the q1_force = 1 variant and the "(a) which slave-1 output" [check]: the drawing settles it as transcribed.
 2. END as a reset-NOR input: confirmed.
