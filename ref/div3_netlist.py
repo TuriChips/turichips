@@ -96,7 +96,6 @@ def run_lag(halves, res_set=(), state=(0, 0, 0, 0), lead=False, order=None):
         clk = t & 1
         res = int(t in res_set)
         if lead:
-            settle(s, res_prev, res, order) if False else None
             settle(s, 1 - clk, res, order)       # RES changes while the old CLK level still holds
             settle(s, clk, res, order)
         else:

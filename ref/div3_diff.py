@@ -14,6 +14,7 @@ def seg(o):
         else: s.append(n); n = 1
     return s
 tot = diff = 0; examples = []
+split = {'rise': [0, 0], 'fall': [0, 0]}  # RESΦ0 ends at CLK rising / falling edge: [runs, diffs]
 for st in STATES:
     # free run
     a = ig.run(60, state=st)
@@ -30,8 +31,11 @@ for w in (1, 2, 3, 4):
         for oi, od in enumerate(orders):
             b, bad = nl.run(60, state=st, res_set=rs, order=od)
             tot += 1
+            k = 'rise' if (off + 20 + w) & 1 else 'fall'
+            split[k][0] += 1
             if a != b:
-                diff += 1
+                diff += 1; split[k][1] += 1
                 if len(examples) < 12: examples.append(('res', w, off, st, oi, ''.join(map(str, a[18:50])), ''.join(map(str, b[18:50])), bad))
 print('compared', tot, 'runs; differences', diff)
+for k, (n, d) in split.items(): print('RESΦ0 ends at CLK', k, ':', n, 'runs,', d, 'differ')
 for e in examples: print(e)
