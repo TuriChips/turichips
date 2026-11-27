@@ -1,5 +1,5 @@
-date: 2026-11-13T13:29:06Z
-commit: f60de97
+date: 2026-11-27T11:15:23Z
+commit: 5fcbbe6
 verilator: Verilator 5.020 2024-01-01 rev (Debian 5.020-1)
 yosys: Yosys 0.33 (git sha1 2584903a060)
 make: GNU Make 4.3
