@@ -45,8 +45,10 @@ POOL = ["seat0", "seat1", "seat3"]
 WEEKLY_BUFFER = 0.08                 # never plan to use the last 8% of a seat's week
 FIVE_HOUR_CEILING = 0.95             # no new launches on a seat past this in its 5-hour window
 SEAT_MAX_RUNNING = 2                 # turns at once per seat (task + chat)
-MACHINE_MAX_RUNNING = 3              # turns at once on the whole VM (2 vCPU, 8 GB): no new task turns past this.
-                                     # Chat with Sai still runs. On 2026-11-24 six turns at once (P&R + zexdoc) froze the VM.
+MACHINE_MAX_RUNNING = int(os.environ.get("FACTORY_MACHINE_MAX_RUNNING", "3"))   # turns at once on the whole VM:
+                                     # no new task turns past this; chat with Sai still runs. 3 suits the old 2 vCPU / 8 GB
+                                     # VM (on 2026-11-24 six turns at once, P&R + zexdoc, froze it). Since 2026-11-27 the VM
+                                     # is 8 vCPU / 32 GB and the env file sets 6.
 AHEAD_OF_PACE = 0.10                 # every seat this far ahead of weekly pace: only urgent work goes out
 CHAT_FALLBACK_SEAT = "seat0"         # chat with Sai still works when the whole pool is out
 
